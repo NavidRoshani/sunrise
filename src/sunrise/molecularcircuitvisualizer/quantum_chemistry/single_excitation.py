@@ -1,0 +1,43 @@
+import numbers
+
+from ..core import CircuitState, CircuitStyle
+from . import PairCorrelatorGate
+from ..core import Polygon
+
+
+class SingleExcitation(PairCorrelatorGate):
+    """
+        i,j correspond to Spin Orbital index --> ((i,j))
+    """
+
+    def construct_circuit(self, *args, **kwargs):
+        return self._dummy.make_excitation_gate(indices=(self.i, self.j), angle=self.angle,
+                                                assume_real=self.assume_real, control=self.control, *args, **kwargs)
+
+    def _render(self, state: CircuitState, style: CircuitStyle) -> str:
+        spin = {0: Polygon(-3), 1: Polygon(3)}
+
+        # styling
+        shape1 = spin[self.i % 2]
+        shape2 = spin[self.j % 2]
+        tcol = style.primary.text_color
+        gcol = style.primary.gate_color
+
+        # angle
+        gcol, tcol = self.render_angle(style, gcol, tcol)
+
+        # TODO: param is not used again in the original??
+        param = self.angle
+        if isinstance(param, numbers.Number):
+            param = "{:1.2f}".format(param)
+
+        # rendering
+        result = " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,
+                                                                                           shape=shape1, gcol=gcol,
+                                                                                           tcol="{" + tcol.name + "}",
+                                                                                           op="")
+        result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,
+                                                                                            shape=shape2, gcol=gcol,
+                                                                                            tcol="{" + tcol.name + "}",
+                                                                                            op="")
+        return result
