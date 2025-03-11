@@ -1,67 +1,11 @@
-import os
-from typing import List,Union
-from typing_extensions import deprecated
-
-import tequila as tq
 import subprocess
 
-from .core import RGB, Colors, Color, ColorRange
-from .core import Gate
-from .core import CircuitStyle
 from .quantum_chemistry import PairCorrelatorGate
 from .quantum_chemistry import SingleExcitation
 from .generic import Circuit
 from .generic import GenericGate
 from .quantum_chemistry import DoubleExcitation
 from .quantum_chemistry import OrbitalRotatorGate
-
-
-@deprecated("Instead use the export_qpic method on gate/circuit directly!")
-def export_to_qpic(list_of_gates: Union[List[Gate], Gate], filename=None, filepath=None,
-                   group_together=False, qubit_names: dict[int, str] = {}, mark_parametrized_gates=False,
-                   color_range: bool = False,
-                   gatecolor1="tq",
-                   textcolor1="white", gatecolor2="fai", textcolor2="white", gatecolor3="unia", textcolor3="black",
-                   color_from='blue', color_to='red', **kwargs) -> str:
-    """
-    This function takes a list of gates (or a single gate) and converts them into a Circuit which is then rendered with the given parameters.
-
-    This function was superseded by the generic Gate::export_qpic() function which has a nicer API.
-    It remains only to ensure backwards compatibility with legacy code by converting these parameters into the new structure.
-    """
-
-    # define colors as list of dictionaries with "name":str, "rgb":tuple entries
-    custom_colors: dict[str, RGB] = {}
-    if "colors" in kwargs:
-        colors = kwargs["colors"]
-        kwargs.pop("colors")
-
-        for color in colors:
-            custom_colors[color["name"]] = RGB(*tuple(color["rgb"]))
-
-    wcolors = {}
-    if "wire_colors" in kwargs:
-        for index, name in kwargs["wire_colors"].items():
-            wcolors[index] = Color(name)
-        kwargs.pop("wire_colors")
-
-    marking = None
-    if mark_parametrized_gates:
-        marking = Colors(Color(textcolor3), Color(gatecolor3))
-
-    colored_range = None
-    if color_range:
-        colored_range = ColorRange(Color(color_from), Color(color_to))
-
-    if isinstance(list_of_gates, List):
-        circuit = Circuit(list_of_gates)
-    else:
-        circuit = list_of_gates
-
-    style = CircuitStyle(group_together, marking, colored_range, Colors(Color(textcolor1), Color(gatecolor1)),
-                         Colors(Color(textcolor2), Color(gatecolor2)))
-
-    return circuit.export_qpic(filename, filepath, style, qubit_names, custom_colors, wcolors)
 
 
 def qpic_to_pdf(filename, filepath=None):

@@ -7,9 +7,7 @@ circuit = sun.Circuit([
     sun.SingleExcitation(0, 2, angle="c"),
     sun.SingleExcitation(0, 2, angle="d"),
 ])
-sun.export_to_qpic(circuit, filename="before_assignment", color_range=True, mark_parametrized_gates=True)
-new_circuit = []
+sun.export_qpic(circuit, filename="before_assignment", color_range=True, mark_parametrized_gates=True)
 variables = {"a": 0, "b": pi / 4, "c": pi / 2, "d": pi}
-for gate in circuit:
-    new_circuit.append(gate.map_variables(variables=variables))
-qp.export_to_qpic(new_circuit, filename="after_assignment", color_range=True, mark_parametrized_gates=True)
+new_circuit = circuit.map_variables(variables)
+sun.export_qpic(new_circuit, filename="after_assignment", color_range=True, mark_parametrized_gates=True)

@@ -6,6 +6,7 @@ import tequila as tq
 
 from .color import RGB, DefaultColors, Color
 from .state import CircuitState, CircuitStyle
+from src.sunrise import qpic_to_pdf,qpic_to_png
 
 
 class Gate(abc.ABC):
@@ -100,6 +101,27 @@ class Gate(abc.ABC):
             with open(extendedFilename, "w") as file:
                 file.write(result)
 
+    def export_to(self,filename: str,**kwargs):
+        """
+        Shortcut to render this gate/circuit into a complete qpic/png/pdf document.
+        """
+
+        filename_tmp = filename.split(".")
+        if len(filename_tmp) == 1:
+            ftype = ".pdf"
+            fname = filename
+        else:
+            ftype = filename_tmp[-1]
+            fname = "".join(filename_tmp[:-1])
+
+        if ftype == '.qpic':
+            self.export_qpic(fname,**kwargs)
+        elif ftype == '.pdf':
+            qpic_to_pdf(filename,**kwargs)
+        elif ftype == '.png':
+            qpic_to_png(filename,**kwargs)
+        else:
+            raise tq.TequilaException(f'Extension {ftype} not supported directly. Try exporting to qpic and compiling to {ftype} yourself')
     @abc.abstractmethod
     def used_wires(self) -> List[int]:
         """

@@ -1,5 +1,5 @@
 import tequila as tq
-import src.sunrise.molecularcircuitvisualizer as vs
+import sunrise as sun
 
 mol = tq.Molecule(geometry="H 0. 0. 0. \n H 0. 0. 1.",basis_set="sto-3g")
 U = tq.QCircuit()
@@ -13,8 +13,8 @@ U += mol.make_excitation_gate(indices=[(5,7)],angle="b")
 U += mol.UR(0,1,1)
 U += mol.UC(1,2,2)
 
-visual_circuit = vs.from_circuit(U, n_qubits_is_double=True)
+visual_circuit = sun.from_circuit(U, n_qubits_is_double=True)
 
 visual_circuit.export_qpic("from_circuit_example") # Create qpic file
-vs.qpic_to_png("from_circuit_example") # Create png file
-vs.qpic_to_pdf("from_circuit_example") # Create png file
+sun.qpic_to_png("from_circuit_example") # Create png file
+sun.qpic_to_pdf("from_circuit_example") # Create png file
