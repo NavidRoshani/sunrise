@@ -11,7 +11,7 @@ def read_requirements():
 
 setup(
     name='project-sunrise',
-    version="1.0.0",
+    version="0.1.0",
     author="Chair of Quantum Algorithmics at Augsburg University (Germany)",
     url="https://git.rz.uni-augsburg.de/qalg-a/project-sunrise.git",
     install_requires=read_requirements(),
