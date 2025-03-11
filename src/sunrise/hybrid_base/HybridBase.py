@@ -18,6 +18,8 @@ from .encodings import known_encodings
 from .FermionicGateImpl import FermionicGateImpl
 from openfermion import FermionOperator
 import copy
+from src.sunrise.hybridization.hybridization import Graph
+
 class HybridBase(qc_base):
     def __init__(self, parameters: ParametersQC,select: typing.Union[str,dict]={},transformation: typing.Union[str, typing.Callable] = None, active_orbitals: list = None,
                  frozen_orbitals: list = None, orbital_type: str = None,reference_orbitals: list = None, orbitals: list = None, *args, **kwargs):
@@ -1523,3 +1525,20 @@ class HybridBase(qc_base):
         g.elems = new_g
         parameters = copy.deepcopy(self.parameters)
         return mol(parameters=parameters,one_body_integrals=h,two_body_integrals=g,nuclear_repulsion=c,backend='pyscf',transformation=self.transformation.name,n_electrons=self.n_electrons).compute_energy(method=method, *args,**kwargs)
+
+    def get_xyz(self)->str:
+        geom = self.parameters.get_geometry()
+        f = ''
+        f += f'{len(geom)}\n'
+        f += f'{self.parameters.name}\n'
+        for at in geom:
+            f += f'{at[0]} {at[1][0]} {at[1][1]} {at[1][2]}\n'
+        return f
+
+    def graph(self):
+        return Graph.parse_xyz(self.get_xyz())
+    def get_spa_edges(self):
+        return self.graph().get_spa_edges()
+    def get_spa_guess(self):
+        return self.graph().get_orbital_coefficient_matrix()
+
