@@ -199,56 +199,59 @@ class HybridBase(qc_base):
         self.select = select
         self.transformation.update_select(select)
 
-    def use_native_orbitals(self, inplace=False,core:list=None,*args,**kwargs):
+    def use_native_orbitals(self, inplace=False, core: list = None, *args, **kwargs):
         """
         Parameters
         ----------
         inplace: update current molecule or return a new instance
-        core: list of the core orbitals indices (they will be frozen) on the HF schema. If not provided, they will be employed the
+        core: list of the core orbitals indices (they will be frozen) on the current orbitals schema. If not provided, they will be employed the
         indices on the integral manager. If active space on the intregral manager and core is not None, core will be interpreted
         with respect to the complete basis.
-        active(in kwargs): list of the active orbital indices on the Native Orbs schema. If not provided they are set the indices
-        not being on the core list. Take care. For example where it may necesary, check the H-He-H molecule al high interatomic
-        distances with pyscf; the fist HF orbital correspond to |\phi_0> = 1.|\chi_1>, being identical to the \varphi_1>.
+        active(in kwargs): list of the active orbital indices on the Native Orbs schema. If not provided they will be chosen the ones
+        with the lowest overlap with the core orbitals. For example where it may necesary, check the H-He-H molecule
+        with pyscf; the fist HF orbital (at high interatomic distances) correspond to |\phi_0> = 1.|\chi_1>, being identical to the \varphi_1>.
         If not specified,an with core=[0], active will be [1,2] breaking the orthogonalization.
         Returns
         -------
         New molecule in the native (orthonormalized) basis given
         e.g. for standard basis sets the orbitals are orthonormalized Gaussian Basis Functions
         """
-        def orthogonalize():
+        c = copy.deepcopy(self.integral_manager.orbital_coefficients)
+        s = self.integral_manager.overlap_integrals
+        d = self.integral_manager.get_orthonormalized_orbital_coefficients()
+
+        def inner(a, b, s):
+            norm = 0.
+            for i in range(len(d)):
+                for j in range(len(d)):
+                    norm += a[i] * b[j] * s[i][j]
+            return norm
+
+        def orthogonalize(c, d, s):
             '''
             :return: orthogonalized orbitals with core HF orbitals and active Orthongonalized Native orbitals.
             '''
-            def inner(a, b):
-                norm = 0.
-                for i in range(len(d)):
-                    for j in range(len(d)):
-                        norm += a[i] * b[j] * s[i][j]
-                return norm
-            c = copy.deepcopy(self.integral_manager.orbital_coefficients)
-            s = self.integral_manager.overlap_integrals
-            d = self.integral_manager.get_orthonormalized_orbital_coefficients()
             ### Computing Core-Active overlap Matrix
-                # sbar_{ki} = \langle \phi_k | \varphi_i \rangle = \sum_{m,n} c_{nk}d_{mi}\langle \chi_n | \chi_m \rangle
-                # c_{nk} = HF coeffs, d_{mi} = nat orb coef s_{mn} = Atomic Overlap Matrix
-                # k \in active orbs, i \in core orbs, m,n \in basis coeffs
-                # sbar = np.einsum('nk,mi,nm->ki', c, d, s) #only works if active == to_active
+            # sbar_{ki} = \langle \phi_k | \varphi_i \rangle = \sum_{m,n} c_{nk}d_{mi}\langle \chi_n | \chi_m \rangle
+            # c_{nk} = HF coeffs, d_{mi} = nat orb coef s_{mn} = Atomic Overlap Matrix
+            # k \in active orbs, i \in core orbs, m,n \in basis coeffs
+            # sbar = np.einsum('nk,mi,nm->ki', c, d, s) #only works if active == to_active
             c = c.T
             d = d.T
             sbar = numpy.zeros(shape=s.shape)
             for k in active:
                 for i in core:
-                    sbar[i][to_active[k]] = inner(c[i],d[k])
+                    sbar[i][to_active[k]] = inner(c[i], d[k], s)
             ### Projecting out Core orbitals from the Native ones
-                # dbar_{ji} = d_{ji} - \sum_k sbar_{ki}c_{jk}
-                # k \in active, i \in core, j in basis coeffs
+            # dbar_{ji} = d_{ji} - \sum_k sbar_{ki}c_{jk}
+            # k \in active, i \in core, j in basis coeffs
             dbar = numpy.zeros(shape=s.shape)
 
             for j in active:
+                dbar[to_active[j]] = d[j]
                 for i in core:
                     temp = sbar[i][to_active[j]] * c[i]
-                    dbar[to_active[j]] = d[j] - temp
+                    dbar[to_active[j]] -= temp
             ### Projected-out Nat Orbs Normalization
             for i in to_active.values():
                 norm = numpy.sqrt(numpy.sum(numpy.multiply(numpy.outer(dbar[i], dbar[i]), s.T)))
@@ -261,7 +264,7 @@ class HybridBase(qc_base):
             sprima = numpy.eye(len(c))
             for idx, i in enumerate(to_active.values()):
                 for j in [*to_active.values()][idx:]:
-                    sprima[i][j] = inner(c[i], c[j])
+                    sprima[i][j] = inner(c[i], c[j], s)
                     sprima[j][i] = sprima[i][j]
             ### Symmetric orthonormalization
             lam_s, l_s = numpy.linalg.eigh(sprima)
@@ -269,29 +272,47 @@ class HybridBase(qc_base):
             lam_sqrt_inv = numpy.sqrt(numpy.linalg.inv(lam_s))
             symm_orthog = numpy.dot(l_s, numpy.dot(lam_sqrt_inv, l_s.T))
             return symm_orthog.dot(c).T
+
+        def get_active(core):
+            ov = numpy.zeros(shape=(len(self.integral_manager.orbitals)))
+            for i in core:
+                for j in range(len(d)):
+                    ov[j] += inner(c[i], d[j], s)
+            act = []
+            for i in range(len(self.integral_manager.orbitals) - len(core)):
+                idx = numpy.argmin(ov)
+                act.append(idx)
+                ov[idx] = 1 * len(core)
+            act.sort()
+            return act
+
         active = None
         if not self.integral_manager.active_space_is_trivial() and core is None:
-            active = [i.idx_total for i in self.integral_manager.orbitals if i.idx is not None]
-            core = [i for i in range(len(self.orbitals)) if i not in active]
+            core = [i.idx_total for i in self.integral_manager.orbitals if i.idx is None]
         if 'active' in kwargs:
             active = kwargs['active']
             kwargs.pop('active')
         else:
             if active is None:
-                if core is None: core = []
-                active = [i for i in range(len(self.orbitals)) if i not in core]
-        assert len(active) + len(core) == len(self.orbitals)
-        to_active = [i for i in range(len(self.integral_manager.active_orbitals)) if i not in core]
+                if core is None:
+                    core = []
+                    active = [i for i in range(len(self.integral_manager.orbitals))]
+                else:
+                    if isinstance(core, int):
+                        core = [core]
+                    active = get_active(core)
+        assert len(active) + len(core) == len(self.integral_manager.orbitals)
+        to_active = [i for i in range(len(self.integral_manager.orbitals)) if i not in core]
         to_active = {active[i]: to_active[i] for i in range(len(active))}
         if len(core):
-            coeff = orthogonalize()
+            coeff = orthogonalize(c, d, s)
             if inplace:
-                self.integral_manager.orbital_coefficients=coeff
+                self.integral_manager.orbital_coefficients = coeff
                 self.integral_manager.active_space = [*to_active.values()]
                 return self
             else:
                 integral_manager = copy.deepcopy(self.integral_manager)
-                integral_manager.orbital_coefficients=coeff
+                integral_manager.orbital_coefficients = coeff
                 parameters = copy.deepcopy(self.parameters)
                 result = HybridBase(parameters=parameters, integral_manager=integral_manager,transformation=self.transformation,
                 select=self.select, two_qubit=self.two_qubit,condense=self.condense, integral_tresh=self.integral_tresh,active_orbitals=[*to_active.values()])
@@ -305,8 +326,8 @@ class HybridBase(qc_base):
             integral_manager = copy.deepcopy(self.integral_manager)
             integral_manager.transform_to_native_orbitals()
             parameters = copy.deepcopy(self.parameters)
-            result = HybridBase(parameters=parameters, integral_manager=integral_manager, transformation=self.transformation,
-            select=self.select, two_qubit=self.two_qubit, condense=self.condense, integral_tresh=self.integral_tresh)
+            result = HybridBase(parameters=parameters, integral_manager=integral_manager,transformation=self.transformation,
+            select=self.select, two_qubit=self.two_qubit, condense=self.condense,integral_tresh=self.integral_tresh)
             return result
 
     # Tranformation Related Function
