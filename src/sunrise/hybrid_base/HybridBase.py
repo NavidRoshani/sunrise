@@ -229,8 +229,6 @@ class HybridBase(qc_base):
             c = copy.deepcopy(self.integral_manager.orbital_coefficients)
             s = self.integral_manager.overlap_integrals
             d = self.integral_manager.get_orthonormalized_orbital_coefficients()
-            to_active = [i for i in range(len(self.integral_manager.active_orbitals)) if i not in core]
-            to_active = {active[i]: to_active[i] for i in range(len(active))}
             ### Computing Core-Active overlap Matrix
                 # sbar_{ki} = \langle \phi_k | \varphi_i \rangle = \sum_{m,n} c_{nk}d_{mi}\langle \chi_n | \chi_m \rangle
                 # c_{nk} = HF coeffs, d_{mi} = nat orb coef s_{mn} = Atomic Overlap Matrix
@@ -283,18 +281,20 @@ class HybridBase(qc_base):
                 if core is None: core = []
                 active = [i for i in range(len(self.orbitals)) if i not in core]
         assert len(active) + len(core) == len(self.orbitals)
-
+        to_active = [i for i in range(len(self.integral_manager.active_orbitals)) if i not in core]
+        to_active = {active[i]: to_active[i] for i in range(len(active))}
         if len(core):
             coeff = orthogonalize()
             if inplace:
                 self.integral_manager.orbital_coefficients=coeff
+                self.integral_manager.active_space = [*to_active.values()]
                 return self
             else:
                 integral_manager = copy.deepcopy(self.integral_manager)
                 integral_manager.orbital_coefficients=coeff
                 parameters = copy.deepcopy(self.parameters)
                 result = HybridBase(parameters=parameters, integral_manager=integral_manager,transformation=self.transformation,
-                select=self.select, two_qubit=self.two_qubit,condense=self.condense, integral_tresh=self.integral_tresh)
+                select=self.select, two_qubit=self.two_qubit,condense=self.condense, integral_tresh=self.integral_tresh,active_orbitals=[*to_active.values()])
                 return result
 
         # can not be an instance of a specific backend (otherwise we get inconsistencies with classical methods in the backend)
