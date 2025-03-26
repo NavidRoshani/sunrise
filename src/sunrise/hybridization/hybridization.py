@@ -375,6 +375,11 @@ class Graph:
         return orbital_matrix
 
     def get_orbital_coefficient_matrix(self, strip_orbitals=False):
+        '''
+
+        :param strip_orbitals: will skip 1s orbs
+        :return:
+        '''
         matrices = [self.apply_hybridization(atom, strip_orbitals=strip_orbitals) for atom in self.atoms]
         bond_data = [self.get_bonds(atom) for atom in self.atoms]
         size = sum(matrix.shape[0] for matrix in matrices)
