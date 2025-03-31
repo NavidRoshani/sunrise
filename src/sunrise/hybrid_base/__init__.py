@@ -3,8 +3,8 @@ import warnings
 
 from tequila import TequilaWarning
 from .HybridBase import HybridBase
-from HybridBase.plot_MO import plot_MO
-from HybridBase.MolecularPool import MolecularPool
+from ..plot_MO import plot_MO
+from .MolecularPool import MolecularPool
 from tequila.quantumchemistry.chemistry_tools import ParametersQC
 
 SUPPORTED_QCHEMISTRY_BACKENDS = ["base", "pyscf"] # , "psi4", "madness"

@@ -12,10 +12,10 @@ a1 /
 a2 /
 a3 /
 a4 /
- a0 P:fill=tq:shape=-3 \textcolor{white}{}  a1 P:fill=tq:shape=3 \textcolor{white}{}  
- a0 P:fill=fai:shape=6 \textcolor{white}{}  a1 P:fill=fai:shape=6 \textcolor{white}{}  
- a0 P:fill=fai:shape=6 \textcolor{white}{}  a1 P:fill=fai:shape=-3 \textcolor{white}{}  a2 P:fill=fai:shape=3 \textcolor{white}{}  
- a0 P:fill=fai:shape=-3 \textcolor{white}{}  a2 P:fill=fai:shape=3 \textcolor{white}{}  a1 P:fill=fai:shape=6 \textcolor{white}{}  
- a0 P:fill=fai:shape=-3 \textcolor{white}{}  a1 P:fill=fai:shape=-3 \textcolor{white}{}  a2 P:fill=fai:shape=-3 \textcolor{white}{}  a3 P:fill=fai:shape=-3 \textcolor{white}{}  
- a0 P:fill=fai:shape=-3 \textcolor{white}{}  a1 P:fill=fai:shape=-3 \textcolor{white}{}  a2 P:fill=fai:shape=-3 \textcolor{white}{}  a4 P:fill=fai:shape=3 \textcolor{white}{}  
+ a0 P:fill=unia:shape=-3 \textcolor{black}{}  a1 P:fill=unia:shape=3 \textcolor{black}{}  
+ a0 P:fill=blue!15!red:shape=6 \textcolor{white}{}  a1 P:fill=blue!15!red:shape=6 \textcolor{white}{}  
+ a0 P:fill=unia:shape=6 \textcolor{black}{}  a1 P:fill=unia:shape=-3 \textcolor{black}{}  a2 P:fill=unia:shape=3 \textcolor{black}{}  
+ a0 P:fill=blue!15!red:shape=-3 \textcolor{white}{}  a2 P:fill=blue!15!red:shape=3 \textcolor{white}{}  a1 P:fill=blue!15!red:shape=6 \textcolor{white}{}  
+ a0 P:fill=unia:shape=-3 \textcolor{black}{}  a1 P:fill=unia:shape=-3 \textcolor{black}{}  a2 P:fill=unia:shape=-3 \textcolor{black}{}  a3 P:fill=unia:shape=-3 \textcolor{black}{}  
+ a0 P:fill=blue!15!red:shape=-3 \textcolor{white}{}  a1 P:fill=blue!15!red:shape=-3 \textcolor{white}{}  a2 P:fill=blue!15!red:shape=-3 \textcolor{white}{}  a4 P:fill=blue!15!red:shape=3 \textcolor{white}{}  
 

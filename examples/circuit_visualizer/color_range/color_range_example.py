@@ -19,4 +19,5 @@ circuit =sun.Circuit([
     sun.SingleExcitation(1, 3, angle=1, unit_of_pi=True),
     sun.SingleExcitation(1, 3, angle=4, unit_of_pi=True),
 ])
-sun.export_qpic(circuit,filename="color_range_example",color_range=True)
+circuit.export_qpic(filename="color_range_example")
+circuit.export_to("color_range_example.pdf")

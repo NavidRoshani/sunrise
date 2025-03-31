@@ -25,5 +25,5 @@ circuit = sun.Circuit([
 ])
 
 circuit.export_qpic("hybrid_molecule",select=select) # Create qpic file
-sun.qpic_to_png("hybrid_molecule") # Create png file
-sun.qpic_to_pdf("hybrid_molecule") # Create pdf file
+# sun.qpic_to_png("hybrid_molecule") # Create png file
+circuit.export_to("hybrid_molecule.pdf") # Create pdf file

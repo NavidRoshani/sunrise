@@ -1,7 +1,7 @@
 import tequila as tq
 import pytest
 import numpy
-import HybridBase as cl
+import sunrise as cl
 @pytest.mark.parametrize("system",["H 0.0 0.0 0.0\nH 0.0 0.0 1.6\nH 0.0 0.0 3.2\nH 0.0 0.0 4.8","H 0. 0. 0.\n Be 0. 0. 1.6\n H 0. 0. 3.2"])
 @pytest.mark.parametrize("select",["FBFBFFBFBFBFB","BBFFBBFFBBFF"])
 @pytest.mark.parametrize("two_qubit",[True,False])

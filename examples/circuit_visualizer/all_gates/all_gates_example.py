@@ -1,5 +1,5 @@
 import tequila as tq
-import surise as sun
+import sunrise as sun
 
 circuit = sun.Circuit([
     # Initial state gate, qubits are halved 
@@ -22,5 +22,5 @@ circuit = sun.Circuit([
 ])
 
 circuit.export_qpic("all_gates_example") # Create qpic file
-sun.qpic_to_png("all_gates_example") # Create png file
-sun.qpic_to_pdf("all_gates_example") # Create pdf file
+sun.qpic_to_png("all_gates_example") # Create png file, you need pdflatex
+sun.qpic_to_pdf("all_gates_example") # Create pdf file, you need pdflatex

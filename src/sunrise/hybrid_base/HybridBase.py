@@ -18,8 +18,7 @@ from .encodings import known_encodings
 from .FermionicGateImpl import FermionicGateImpl
 from openfermion import FermionOperator
 import copy
-from src.sunrise.hybridization.hybridization import Graph
-
+from ..hybridization.hybridization import Graph
 class HybridBase(qc_base):
     def __init__(self, parameters: ParametersQC,select: typing.Union[str,dict]={},transformation: typing.Union[str, typing.Callable] = None, active_orbitals: list = None,
                  frozen_orbitals: list = None, orbital_type: str = None,reference_orbitals: list = None, orbitals: list = None, *args, **kwargs):

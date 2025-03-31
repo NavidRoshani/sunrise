@@ -6,9 +6,7 @@ import tequila as tq
 
 from .color import RGB, DefaultColors, Color
 from .state import CircuitState, CircuitStyle
-from src.sunrise import qpic_to_pdf,qpic_to_png
-
-
+from ... import molecularcircuitvisualizer #import qpic_to_pdf,qpic_to_png
 class Gate(abc.ABC):
     """
     Gate that can generate it's qpic visualization on its own as well as construct the matching tequila circuit.
@@ -113,13 +111,12 @@ class Gate(abc.ABC):
         else:
             ftype = filename_tmp[-1]
             fname = "".join(filename_tmp[:-1])
-
-        if ftype == '.qpic':
+        if ftype == 'qpic':
             self.export_qpic(fname,**kwargs)
-        elif ftype == '.pdf':
-            qpic_to_pdf(filename,**kwargs)
-        elif ftype == '.png':
-            qpic_to_png(filename,**kwargs)
+        elif ftype == 'pdf':
+            molecularcircuitvisualizer.qpic_to_pdf(fname,**kwargs)
+        elif ftype == 'png':
+            molecularcircuitvisualizer.qpic_to_png(fname,**kwargs)
         else:
             raise tq.TequilaException(f'Extension {ftype} not supported directly. Try exporting to qpic and compiling to {ftype} yourself')
     @abc.abstractmethod
