@@ -9,7 +9,7 @@ mol = tq.Molecule(geometry="h 0.0 0.0 0.0\nh 0.0 0.0 1.5\nh 0.0 0.0 3.0\nh 0.0 0
 fci = mol.compute_energy("fci")
 H = mol.make_hamiltonian()
 
-# Create true wave function and dummy circuit
+# Create true wave function
 Hof = H.to_openfermion()
 Hsparse = of.linalg.get_sparse_operator(Hof)
 v,vv = scipy.sparse.linalg.eigsh(Hsparse, sigma=fci)
