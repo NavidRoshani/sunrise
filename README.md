@@ -35,7 +35,7 @@ molecule  = sun.Molecule(geometry="H 0. 0. 0. \n Li 0. 0. 1.5",basis_set="sto-3g
 print(molecule.select)
 ```
 
-### Construct your circuit circuit
+### Construct your circuit
 The SPA circuit (and all the automatically built circuits) are already adapted to your encoding
 
 ```python
@@ -72,6 +72,92 @@ print("Select: ",omol.select)
 ```
 
 Find this example in the test file
+
+# HCB measurement optimization
+Optimize the measurement procedure of a molecule energy by using the HCB encoding and multiple rotations.
+
+Example using quantum circuit (Scenario II):
+
+```python
+import tequila as tq
+import sunrise as sun
+import numpy as np
+
+# Create the molecule
+mol = tq.Molecule(geometry="h 0.0 0.0 0.0\nh 0.0 0.0 1.5\nh 0.0 0.0 3.0\nh 0.0 0.0 4.5", basis_set="sto-3g").use_native_orbitals()
+fci = mol.compute_energy("fci")
+H = mol.make_hamiltonian()
+
+# Create circuit
+U0 = mol.make_ansatz(name="SPA", edges=[(0,1),(2,3)])
+UR1 = mol.UR(0,1,angle=np.pi/2) + mol.UR(2,3,angle=np.pi/2) + mol.UR(0,3,angle=-0.2334) + mol.UR(1,2,angle=-0.2334)
+
+UR2 = mol.UR(1,2,angle=np.pi/2) + mol.UR(0,3,angle=np.pi/2)
+UR2+= mol.UR(0,1,angle="x") + mol.UR(0,2,angle="y") + mol.UR(1,3,angle="xx") + mol.UR(2,3,angle="yy") + mol.UR(1,2,angle="z") + mol.UR(0,3,angle="zz")
+UC2 = mol.UC(1,2,angle="b") + mol.UC(0,3,angle="c")
+U = U0 + UR1.dagger() + UR2 + UC2 + UR2.dagger()
+
+variables = {((0, 1), 'D', None): -0.644359150621798, ((2, 3), 'D', None): -0.644359150621816, "x": 0.4322931478168998, "y": 4.980327764918099e-14, "xx": -3.07202211218271e-14, "yy": 0.7167447375727501, "z": -3.982666230146327e-14, "zz": 1.2737831353027637e-13, "c": -0.011081251246998072, "b": 0.49719805420976604, ((0, 3), 'D', 1): 0.0, ((1, 2), 'D', 1): 0.0}
+E = tq.ExpectationValue(H=H, U=U)
+energy = tq.simulate(E, variables=variables)
+print(f"Energy error: {(energy-fci)*1000:.2f} mE_h\n")
+
+# Create rotators
+graphs = [
+    [(0,1),(2,3)],
+    [(0,3),(1,2)],
+    [(0,2),(1,3)]
+]
+rotators = []
+for graph in graphs:
+    UR = tq.QCircuit()
+    for edge in graph:
+        UR += mol.UR(edge[0], edge[1], angle=np.pi/2)
+    rotators.append(UR)
+
+# Apply the measurement protocol
+result = sun.rotate_and_hcb(molecule=mol, circuit=U, variables=variables, rotators=rotators, target=energy, silent=False)
+print(result) # the list of HCB molecules to measure and the residual element discarded
+```
+
+Example using a wavefunction (Scenario I):
+
+```python
+import tequila as tq
+import sunrise as sun
+import numpy as np
+import openfermion as of
+import scipy
+
+# Create the molecule
+mol = tq.Molecule(geometry="h 0.0 0.0 0.0\nh 0.0 0.0 1.5\nh 0.0 0.0 3.0\nh 0.0 0.0 4.5", basis_set="sto-3g").use_native_orbitals()
+fci = mol.compute_energy("fci")
+H = mol.make_hamiltonian()
+
+# Create true wave function and dummy circuit
+Hof = H.to_openfermion()
+Hsparse = of.linalg.get_sparse_operator(Hof)
+v,vv = scipy.sparse.linalg.eigsh(Hsparse, sigma=fci)
+wfn = tq.QubitWaveFunction.from_array(vv[:,0])
+energy = wfn.inner(H * wfn).real
+
+# Create rotators
+graphs = [
+    [(0,1),(2,3)],
+    [(0,3),(1,2)],
+    [(0,2),(1,3)]
+]
+rotators = []
+for graph in graphs:
+    UR = tq.QCircuit()
+    for edge in graph:
+        UR += mol.UR(edge[0], edge[1], angle=np.pi/2)
+    rotators.append(UR)
+
+# Apply the measurement protocol
+result = sun.rotate_and_hcb(molecule=mol, rotators=rotators, target=fci, initial_state=wfn, silent=False)
+print(result) # the list of HCB molecules to measure and the residual element discarded
+```
 
 # Hybridization
 Automated framework for the generation of ansatz-specific optimized molecular orbitals. Given the Molecule Geometry 
