@@ -151,7 +151,7 @@ def rotate_and_hcb(molecule, rotators, circuit=None, variables=None, initial_sta
     Rotate the molecule using the UR gates and extract the hcb part and the residual part of the transformed molecule.
     Iterate for all the elements of the rotators list.
 
-    molecule: the molecule that holds the molecule to be processed
+    molecule: the molecule that holds the Hamiltonian to be processed
     rotators: the UR gates to be applied
 
     circuit: the quantum circuit to be measured
