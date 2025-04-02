@@ -6,7 +6,7 @@ Will work on OSX and Linux (no PySCF on Windows)
 Install this program with all the dependencies like this:
 
 ```bash
-conda create -n myenv python=3.9
+conda create -n myenv python=3.10
 conda activate myenv
 
 cd project-sunrise

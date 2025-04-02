@@ -197,8 +197,6 @@ def rotate_and_hcb(molecule, rotators, circuit=None, variables=None, initial_sta
             print(f"Increment:             {incr}")
             print(f"Error in new basis:    {target-approx}")
 
-            print(f"Test:                  {target-(approx+rest)}")
-
             M_tot = compute_num_meas(circuit=circuit, variables=variables, initial_state=initial_state, is_hcb=True, hcb_mol=hcb_mol)
             print(f"Number of measurements: {M_tot:e}\n")
 
