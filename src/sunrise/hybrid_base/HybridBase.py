@@ -1677,6 +1677,6 @@ class HybridBase(qc_base):
         return Graph.parse_xyz(self.get_xyz())
     def get_spa_edges(self):
         return self.graph().get_spa_edges()
-    def get_spa_guess(self):
-        return self.graph().get_orbital_coefficient_matrix()
+    def get_spa_guess(self,strip_orbitals:bool=True):
+        return self.graph().get_orbital_coefficient_matrix(strip_orbitals)
 
