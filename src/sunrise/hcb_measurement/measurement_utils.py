@@ -146,7 +146,7 @@ def get_hcb_part(mol):
 
     return hcb_mol, res_mol
 
-def rotate_and_hcb(molecule, rotators, circuit=None, variables=None, initial_state=None, approx=0.0, target=None, silent=False, *args, **kwargs):
+def rotate_and_hcb(molecule, rotators, circuit=None, variables=None, initial_state=None, approx=0.0, target=None, silent=True, *args, **kwargs):
     """
     Rotate the molecule using the UR gates and extract the hcb part and the residual part of the transformed molecule.
     Iterate for all the elements of the rotators list.
