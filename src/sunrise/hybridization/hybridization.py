@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 from .utils import HybridizationUtils,AtomUtils
 from .atom import Atom
 BOND_DISTANCE_TOLERANCE = 1.3
@@ -439,13 +440,14 @@ class Graph:
 
         return coefficient_matrix
 
-    def get_spa_edges(self, collapse=True):
+    def get_spa_edges(self, collapse=True,strip_orbitals:bool=True):
         """
         Generates SPA edges for a molecule, handling per-shell electrons assignment,
         bonding prioritization, lone pair behavior, and shell-based electron distribution.
 
         :param collapse: If True, lone pairs collapse into a single index per pair,
                         otherwise each electron retains its own index.
+        :param strip_orbitals: If True, fully occupied orbitals (Frozen core) are omited
         :return: List of edges, where each entry represents either a bonding connection or a lone pair.
         """
         index = 0  # Global index for assigning electrons
@@ -458,35 +460,40 @@ class Graph:
             bond_index = 0
             electrons_by_shell = atom.electrons_by_shell  # Electron configuration per shell
             max_electrons_by_shell = AtomUtils.max_electrons_by_shell  # Shell electron limits
-
+            if strip_orbitals:
+                ebs = deepcopy(electrons_by_shell)
+                mebs = deepcopy(max_electrons_by_shell)
+                for i in range(atom.number_of_shells):
+                    if electrons_by_shell[i] == max_electrons_by_shell[i]: #Shell i fully occupied
+                        ebs.pop(i)
+                        mebs.pop(i)
+                electrons_by_shell = ebs
+                max_electrons_by_shell = mebs
             for shell_idx, electrons_in_shell in enumerate(electrons_by_shell):
                 if shell_idx >= len(max_electrons_by_shell):
                     break
 
-                max_bonding_capacity = max_electrons_by_shell[shell_idx] // 2
+                max_bonding_capacity = max_electrons_by_shell[shell_idx] // 2 #max_bond = when shell half filled = number orbs
                 bonding_capacity = max_bonding_capacity
-                if electrons_in_shell > max_bonding_capacity:
-                    bonding_capacity -= electrons_in_shell - max_bonding_capacity
-
+                if electrons_in_shell > max_bonding_capacity: # if more than half filled WHY ONLY IF BIGGER, NOT SMALLER
+                    bonding_capacity -= electrons_in_shell - max_bonding_capacity # -> bonding_cap = num unpaired electrons
                 remaining_bonding_capacity = bonding_capacity
-                remaining_unbondable_electrons = electrons_in_shell - bonding_capacity
-                # Step 1: Assign bondable electrons to bonds
+                remaining_unbondable_electrons = electrons_in_shell - bonding_capacity #unbondable e- = number paired e- (can be neg -> unpaired e-)
+                # Step 1: Assign bondable electrons to bonds -> {atom_i:[b_j,b_k,...]}
                 while (remaining_bonding_capacity > 0 and remaining_bonds > 0):
-                    bonded_atom = bonds[bond_index]
-
+                    bonded_atom = bonds[bond_index] #current bonding partner
                     if atom in edges_to_append and len(edges_to_append[atom]) > bond_index:
-                        edges.append((edges_to_append[atom][bond_index], index))
+                        edges.append((edges_to_append[atom][bond_index], index)) # it has been already on one side
                     else:
-                        edges_to_append.setdefault(bonded_atom, [])
-                        edges_to_append[bonded_atom].append(index)
-
+                        edges_to_append.setdefault(bonded_atom, []) # placeholder, bond with only one side -> {a_i:[]}
+                        edges_to_append[bonded_atom].append(index) # {a_i,[b_j,b_k,...]}
+                        # print("Append to edge-> ",edges_to_append)
                     remaining_bonding_capacity -= 1
                     remaining_bonds -= 1
-                    bond_index += 1
-                    index += 1
+                    bond_index += 1 #next bond
+                    index += 1 #next electron
                 remaining_unbondable_electrons += remaining_bonding_capacity
-
-                # Step 2: Assign remaining electrons as lone pairs or unbonded
+                # Step 2: Assign remaining electrons as lone pairs or unbonded, or core double filled orbs
                 while remaining_unbondable_electrons > 0:
                     if collapse and remaining_unbondable_electrons >= 2:
                         # Collapse two electrons into a single lone pair index
@@ -498,7 +505,6 @@ class Graph:
                         edges.append((index,))
                         remaining_unbondable_electrons -= 1
                         index += 1
-
         # print(f"Edges: {edges}")
         return edges
 

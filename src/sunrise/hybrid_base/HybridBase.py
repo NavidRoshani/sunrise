@@ -487,8 +487,8 @@ class HybridBase(qc_base):
         '''
         Just for consistency.
         '''
-        if not len(self.FER_MO):
-            print("Warning HCB Hamiltonian called but the encoding is not full HCB")
+        if len(self.FER_MO):
+            print("Warning HCB Hamiltonian called but the encoding is not full HCB, with encoding: ",self.encoding)
         return self.make_hamiltonian()
 
     def compute_rdms(self, U: QCircuit = None, variables: Variables = None, spin_free: bool = True,
@@ -1680,8 +1680,8 @@ class HybridBase(qc_base):
 
     def graph(self):
         return Graph.parse_xyz(self.get_xyz())
-    def get_spa_edges(self):
-        return self.graph().get_spa_edges()
+    def get_spa_edges(self,collapse:bool=True,strip_orbitals:bool=True):
+        return self.graph().get_spa_edges(collapse=collapse,strip_orbitals=strip_orbitals)
     def get_spa_guess(self,strip_orbitals:bool=True):
-        return self.graph().get_orbital_coefficient_matrix(strip_orbitals)
+        return self.graph().get_orbital_coefficient_matrix(strip_orbitals=strip_orbitals)
 
