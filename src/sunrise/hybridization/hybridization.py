@@ -493,7 +493,7 @@ class Graph:
                     bond_index += 1 #next bond
                     index += 1 #next electron
                 remaining_unbondable_electrons += remaining_bonding_capacity
-                # Step 2: Assign remaining electrons as lone pairs or unbonded, or core double filled orbs
+                # Step 2: Assign remaining electrons as lone pairs, core orbitals or unbonded
                 while remaining_unbondable_electrons > 0:
                     if collapse and remaining_unbondable_electrons >= 2:
                         # Collapse two electrons into a single lone pair index
@@ -505,7 +505,6 @@ class Graph:
                         edges.append((index,))
                         remaining_unbondable_electrons -= 1
                         index += 1
-        # print(f"Edges: {edges}")
         return edges
 
     def rotate_around_point(self, angle, axis, point=None):

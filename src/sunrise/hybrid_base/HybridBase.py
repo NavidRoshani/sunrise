@@ -1269,8 +1269,9 @@ class HybridBase(qc_base):
         ladder: if true the excitation pattern will be local. E.g. in the pair from orbitals (1,2,3) we will have the excitations 1->2 and 2->3, if set to false we will have standard coupled-cluster style excitations - in this case this would be 1->2 and 1->3
         """
         if edges is None:
-            raise TequilaException(
-                "SPA ansatz within a standard orbital basis needs edges. Please provide with the keyword edges.\nExample: edges=[(0,1,2),(3,4)] would correspond to two edges created from orbitals (0,1,2) and (3,4), note that orbitals can only be assigned to a single edge")
+            # raise TequilaException(
+            #     "SPA ansatz within a standard orbital basis needs edges. Please provide with the keyword edges.\nExample: edges=[(0,1,2),(3,4)] would correspond to two edges created from orbitals (0,1,2) and (3,4), note that orbitals can only be assigned to a single edge")
+            edges = self.get_spa_edges()
         # sanity checks
         # current SPA implementation needs even number of electrons
         if self.n_electrons % 2 != 0:
@@ -1680,8 +1681,12 @@ class HybridBase(qc_base):
 
     def graph(self):
         return Graph.parse_xyz(self.get_xyz())
-    def get_spa_edges(self,collapse:bool=True,strip_orbitals:bool=True):
+    def get_spa_edges(self,collapse:bool=True,strip_orbitals:bool=None):
+        if strip_orbitals  is None:
+            strip_orbitals = not self.integral_manager.active_space_is_trivial()
         return self.graph().get_spa_edges(collapse=collapse,strip_orbitals=strip_orbitals)
-    def get_spa_guess(self,strip_orbitals:bool=True):
+    def get_spa_guess(self,strip_orbitals:bool=None):
+        if strip_orbitals  is None:
+            strip_orbitals = not self.integral_manager.active_space_is_trivial()
         return self.graph().get_orbital_coefficient_matrix(strip_orbitals=strip_orbitals)
 
