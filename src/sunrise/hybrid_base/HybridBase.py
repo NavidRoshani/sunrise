@@ -1256,7 +1256,7 @@ class HybridBase(qc_base):
         else:
             raise TequilaException("unknown ansatz with name={}".format(name))
 
-    def make_spa_ansatz(self, edges, hcb=False, use_units_of_pi=False, label=None, optimize=None, ladder=True):
+    def make_spa_ansatz(self, edges=None, hcb=False, use_units_of_pi=False, label=None, optimize=None, ladder=True):
         """
         Separable Pair Ansatz (SPA) for general molecules
         see arxiv:
