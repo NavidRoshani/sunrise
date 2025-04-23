@@ -35,12 +35,9 @@ class DoubleExcitation(PairCorrelatorGate):
 
     def construct_circuit(self, *args, **kwargs):
         if not self.type:
-            return PairCorrelatorGate(i=self.i // 2, j=self.j // 2, assume_real=self.assume_real, angle=self.angle,
-                                      encoding=self.encoding).construct_circuit(*args, **kwargs)
+            return PairCorrelatorGate(i=self.i // 2, j=self.j // 2, assume_real=self.assume_real, angle=self.angle,encoding=self.encoding).construct_circuit(*args, **kwargs)
         else:
-            return self._dummy.make_excitation_gate(indices=((self.i, self.j), (self.k, self.l)),
-                                                    assume_real=self.assume_real, angle=self.angle,
-                                                    control=self.control, *args, **kwargs)
+            return self._dummy.make_excitation_gate(indices=((self.i, self.j), (self.k, self.l)),assume_real=self.assume_real, angle=self.angle,control=self.control, *args, **kwargs)
 
     def _render(self, state: CircuitState, style: CircuitStyle) -> str:
         spin = {0: Polygon(-3), 1: Polygon(3)}
@@ -61,77 +58,29 @@ class DoubleExcitation(PairCorrelatorGate):
         result = ""
         if not self.type:
             shape = Polygon(6)
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,
-                                                                                                shape=shape,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,
-                                                                                                shape=shape,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,shape=shape,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,shape=shape,gcol=gcol,tcol="{" + tcol.name + "}",op="")
         elif self.type == 1:
             shape1 = Polygon(6)
             shape2 = spin[self.j % 2]
             shape3 = spin[self.l % 2]
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,
-                                                                                                shape=shape1,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,
-                                                                                                shape=shape2,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.l // 2,
-                                                                                                shape=shape3,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,shape=shape1,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,shape=shape2,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.l // 2,shape=shape3,gcol=gcol,tcol="{" + tcol.name + "}",op="")
         elif self.type == 2:
             shape3 = Polygon(6)
             shape1 = spin[self.i % 2]
             shape2 = spin[self.k % 2]
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,
-                                                                                                shape=shape1,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.k // 2,
-                                                                                                shape=shape2,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,
-                                                                                                shape=shape3,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,shape=shape1,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.k // 2,shape=shape2,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,shape=shape3,gcol=gcol,tcol="{" + tcol.name + "}",op="")
         else:
             shape1 = spin[self.i % 2]
             shape2 = spin[self.j % 2]
             shape3 = spin[self.k % 2]
             shape4 = spin[self.l % 2]
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,
-                                                                                                shape=shape1,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,
-                                                                                                shape=shape2,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.k // 2,
-                                                                                                shape=shape3,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.l // 2,
-                                                                                                shape=shape4,
-                                                                                                gcol=gcol,
-                                                                                                tcol="{" + tcol.name + "}",
-                                                                                                op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,shape=shape1,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,shape=shape2,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.k // 2,shape=shape3,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.l // 2,shape=shape4,gcol=gcol,tcol="{" + tcol.name + "}",op="")
         return result

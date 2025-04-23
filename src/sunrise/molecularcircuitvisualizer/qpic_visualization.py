@@ -64,20 +64,16 @@ def from_circuit(U, n_qubits_is_double: bool = False, *args, **kwargs) -> Circui
                 if was_ur:
                     was_ur = False
                     continue
-                elif gate != circuit[-1] and circuit[i + 1]._name == 'QubitExcitation' and len(
-                        circuit[i + 1]._target) == 2 and circuit[i + 1]._target[0] // 2 == index[0] // 2 and \
-                        circuit[i + 1]._target[1] // 2 == index[1] // 2:  # hope you enjoy this conditional
+                elif gate != circuit[-1] and circuit[i + 1]._name == 'QubitExcitation' and len(circuit[i + 1]._target) == 2 and circuit[i + 1]._target[0] // 2 == index[0] // 2 and circuit[i + 1]._target[1] // 2 == index[1] // 2 and not n_qubits_is_double:  # hope you enjoy this conditional
                     res.append(OrbitalRotatorGate(index[0] // 2, index[1] // 2, angle=gate._parameter, *args, **kwargs))
                     was_ur = False
                 else:
-                    res.append(SingleExcitation(index[0], index[1], angle=gate._parameter, *args, **kwargs))
+                    res.append(SingleExcitation(index[0], index[1], angle=gate._parameter,n_qubits_is_double=n_qubits_is_double, *args, **kwargs))
             else:
-                if index[0] // 2 == index[2] // 2 and index[1] // 2 == index[
-                    3] // 2:  ## TODO: Maybe generalized for further excitations
-                    res.append(PairCorrelatorGate(index[0] // 2, index[1] // 2, angle=gate._parameter, *args, **kwargs))
+                if index[0] // 2 == index[2] // 2 and index[1] // 2 == index[3] // 2 and not n_qubits_is_double:  ## TODO: Maybe generalized for further excitations
+                    res.append(PairCorrelatorGate(index[0] // 2, index[1] // 2, angle=gate._parameter,  n_qubits_is_double=n_qubits_is_double,*args, **kwargs))
                 else:
-                    res.append(DoubleExcitation(index[0], index[1], index[2], index[3], angle=gate._parameter, *args,
-                                                **kwargs))
+                    res.append(DoubleExcitation(index[0], index[1], index[2], index[3], angle=gate._parameter, n_qubits_is_double=n_qubits_is_double, *args,**kwargs))
         else:
             res.append(GenericGate(U=gate, name="simple", n_qubits_is_double=n_qubits_is_double, *args, **kwargs))
     return Circuit(res)
