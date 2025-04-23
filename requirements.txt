@@ -7,3 +7,4 @@ qulacs
 pytest
 setuptools
 qpic
+pyscf
