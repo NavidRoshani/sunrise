@@ -73,7 +73,7 @@ print("Select: ",omol.select)
 
 Find this example in the test file
 
-# HCB measurement optimization
+# [HCB measurement optimization](https://arxiv.org/abs/2504.03019)
 Optimize the measurement procedure of a molecule energy by using the HCB encoding and multiple rotations.
 
 Example using quantum circuit (Scenario II):
