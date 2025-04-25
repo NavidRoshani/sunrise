@@ -14,10 +14,10 @@ import copy
 class PairCorrelatorGate(Gate, ABC):
     """
         i,j correspond to Molecular Orbital index --> ((2*i,2*j),(2*i+1,2*j+1))
+        only employed if n_qubits_is_double = False
     """
 
-    def __init__(self, i, j, angle, control=None, assume_real=True, encoding="JordanWigner", unit_of_pi: bool = False,
-                 *args, **kwargs):
+    def __init__(self, i, j, angle, control=None, assume_real=True, encoding="JordanWigner", unit_of_pi: bool = False,*args, **kwargs):
         self.i = i
         self.j = j
         self.angle = tq.assign_variable(angle)
@@ -60,8 +60,9 @@ class PairCorrelatorGate(Gate, ABC):
         return mapped_gate
 
     def used_wires(self) -> List[int]:
-        xi = self.i // 2
-        xj = self.j // 2
+
+        xi = self.i
+        xj = self.j
 
         used = list(range(min(xi, xj), max(xi, xj) + 1))
         if self.control is not None:
@@ -101,13 +102,7 @@ class PairCorrelatorGate(Gate, ABC):
             param = "{:1.2f}".format(param)
 
         # rendering
-        result = " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i, shape=shape,
-                                                                                           gcol=gcol,
-                                                                                           tcol="{" + tcol.name + "}",
-                                                                                           op="")
-        result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j, shape=shape,
-                                                                                            gcol=gcol,
-                                                                                            tcol="{" + tcol.name + "}",
-                                                                                            op="")
+        result = " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i, shape=shape,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+        result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j, shape=shape,gcol=gcol,tcol="{" + tcol.name + "}",op="")
 
         return result

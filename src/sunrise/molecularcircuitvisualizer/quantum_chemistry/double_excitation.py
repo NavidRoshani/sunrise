@@ -11,22 +11,25 @@ class DoubleExcitation(PairCorrelatorGate):
             i,j,k,l correspond to Spin Orbital index --> ((i,j),(k,l))
     """
 
-    def __init__(self, i, j, k, l, angle, control=None, assume_real=True, encoding="JordanWigner", *args, **kwargs):
-        super().__init__(i=i, j=j, angle=angle, control=control, assume_real=assume_real, encoding=encoding, *args,
-                         **kwargs)
+    def __init__(self, i, j, k, l, angle, control=None, assume_real=True, encoding="JordanWigner", n_qubits_is_double:bool=False, *args, **kwargs):
+        super().__init__(i=i, j=j, angle=angle, control=control, assume_real=assume_real, encoding=encoding, *args,**kwargs)
+        self.n_qubits_is_double = n_qubits_is_double
         self.k = k
         self.l = l
-        if self.i // 2 == self.k // 2 and self.j // 2 == self.l // 2:
-            self.type = 0  # Actually its a UC
-        elif self.i // 2 == self.k // 2 and self.j // 2 != self.l // 2:
-            self.type = 1  # Origin Orbital Paired, Destination Unpaired
-        elif self.i // 2 != self.k // 2 and self.j // 2 == self.l // 2:
-            self.type = 2  # Origin Orbital Unpaired, Destination Paired
-        else:
-            self.type = 3  # Completely Unpaired
+        self.type = 3
+        if not self.n_qubits_is_double:
+            if self.i // 2 == self.k // 2 and self.j // 2 == self.l // 2:
+                self.type = 0  # Actually its a UC
+            elif self.i // 2 == self.k // 2 and self.j // 2 != self.l // 2:
+                self.type = 1  # Origin Orbital Paired, Destination Unpaired
+            elif self.i // 2 != self.k // 2 and self.j // 2 == self.l // 2:
+                self.type = 2  # Origin Orbital Unpaired, Destination Paired
+            else:
+                self.type = 3  # Completely Unpaired
+
 
     def used_wires(self) -> List[int]:
-        used = list(range(min(self.i, self.j, self.k, self.l) // 2, max(self.i, self.j, self.k, self.l) // 2 + 1))
+        used = list(range(min(self.i, self.j, self.k, self.l) // (1+(not self.n_qubits_is_double)), max(self.i, self.j, self.k, self.l) // (1+(not self.n_qubits_is_double)) + 1))
 
         if self.control is not None:
             used.append(self.control // 2)
@@ -79,8 +82,8 @@ class DoubleExcitation(PairCorrelatorGate):
             shape2 = spin[self.j % 2]
             shape3 = spin[self.k % 2]
             shape4 = spin[self.l % 2]
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,shape=shape1,gcol=gcol,tcol="{" + tcol.name + "}",op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,shape=shape2,gcol=gcol,tcol="{" + tcol.name + "}",op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.k // 2,shape=shape3,gcol=gcol,tcol="{" + tcol.name + "}",op="")
-            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.l // 2,shape=shape4,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // (1+(not self.n_qubits_is_double)),shape=shape1,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // (1+(not self.n_qubits_is_double)),shape=shape2,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.k // (1+(not self.n_qubits_is_double)),shape=shape3,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+            result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.l // (1+(not self.n_qubits_is_double)),shape=shape4,gcol=gcol,tcol="{" + tcol.name + "}",op="")
         return result

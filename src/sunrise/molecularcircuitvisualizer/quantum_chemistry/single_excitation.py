@@ -9,6 +9,9 @@ class SingleExcitation(PairCorrelatorGate):
     """
         i,j correspond to Spin Orbital index --> ((i,j))
     """
+    def __init__(self, i, j, angle, control=None, assume_real=True, encoding="JordanWigner", unit_of_pi: bool = False,n_qubits_is_double:bool=False,*args, **kwargs):
+        super().__init__(i=i, j=j, angle=angle, control=control, assume_real=assume_real, encoding=encoding,unit_of_pi=unit_of_pi,*args,**kwargs)
+        self.n_qubits_is_double = n_qubits_is_double
 
     def construct_circuit(self, *args, **kwargs):
         return self._dummy.make_excitation_gate(indices=(self.i, self.j), angle=self.angle,
@@ -32,12 +35,6 @@ class SingleExcitation(PairCorrelatorGate):
             param = "{:1.2f}".format(param)
 
         # rendering
-        result = " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // 2,
-                                                                                           shape=shape1, gcol=gcol,
-                                                                                           tcol="{" + tcol.name + "}",
-                                                                                           op="")
-        result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // 2,
-                                                                                            shape=shape2, gcol=gcol,
-                                                                                            tcol="{" + tcol.name + "}",
-                                                                                            op="")
+        result = " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // ((not self.n_qubits_is_double)+1),shape=shape1, gcol=gcol,tcol="{" + tcol.name + "}",op="")
+        result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // ((not self.n_qubits_is_double)+1),shape=shape2, gcol=gcol,tcol="{" + tcol.name + "}",op="")
         return result

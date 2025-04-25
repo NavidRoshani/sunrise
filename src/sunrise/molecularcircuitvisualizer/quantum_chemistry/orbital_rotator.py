@@ -7,6 +7,7 @@ from ..quantum_chemistry import PairCorrelatorGate
 class OrbitalRotatorGate(PairCorrelatorGate):
     """
         i,j correspond to Molecular Orbital index --> ((2*i,2*j),(2*i+1,2*j+1))
+        only employed if n_qubits_is_double = False
     """
 
     def construct_circuit(self):
@@ -28,13 +29,7 @@ class OrbitalRotatorGate(PairCorrelatorGate):
             param = "{:1.2f}".format(param)
 
         # rendering
-        result = " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i, shape=shape,
-                                                                                           gcol=gcol,
-                                                                                           tcol="{" + tcol.name + "}",
-                                                                                           op="")
-        result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j, shape=shape,
-                                                                                            gcol=gcol,
-                                                                                            tcol="{" + tcol.name + "}",
-                                                                                            op="")
+        result = " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i, shape=shape,gcol=gcol,tcol="{" + tcol.name + "}",op="")
+        result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j, shape=shape,gcol=gcol,tcol="{" + tcol.name + "}",op="")
 
         return result

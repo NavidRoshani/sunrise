@@ -41,7 +41,7 @@ class GenericGate(Gate):
             elif isinstance(U, tq.circuit._gates_impl.QGateImpl):
                 self.qubits.extend(U.qubits)
                 self.qubits = list(set(self.qubits))  # remove duplicates
-        if n_qubits_is_double:
+        if not n_qubits_is_double:
             spatial = [q // 2 for q in self.qubits]  # half the number of qubits visualized
             self.qubits = list(set(spatial))
 
