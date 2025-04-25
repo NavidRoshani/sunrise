@@ -265,3 +265,4 @@ this cirucit can be latter exported to tequila circuit:
 U = circuit.construct_circuit()
 U += tq.gates.X(1)
 ```
+  
