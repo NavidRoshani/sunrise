@@ -1,7 +1,6 @@
-import numpy as np
 import tequila as tq
 from tequila import QCircuit,QTensor
-from numpy import zeros,eye,allclose,dot,ndarray,array
+from numpy import zeros,eye,allclose,ndarray,array
 
 class OrbitalRotation():
 
