@@ -5,3 +5,4 @@ from .molecularcircuitvisualizer.qpic_visualization import qpic_to_pdf,qpic_to_p
 from .molecularcircuitvisualizer.generic import *
 from .molecularcircuitvisualizer.quantum_chemistry import *
 from .hcb_measurement.measurement_utils import *
+from .fermionic_excitation.orb_rotation import OrbitalRotation
