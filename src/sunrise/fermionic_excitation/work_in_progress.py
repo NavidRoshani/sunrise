@@ -76,15 +76,19 @@ from sunrise import OrbitalRotation as OR
 # print(repr(tq.simulate(d,variables={"a":1,"b":1})))
 # c.apply()
 # exit()
-# idx = [0,1]
-# a = tq.QTensor(shape=(2,2),objective_list=np.zeros(shape=(2,2)).reshape(4))
+idx = [0,1]
+a = tq.QTensor(shape=(2,2),objective_list=np.zeros(shape=(2,2)).reshape(4))
 # # print(repr(a))
 # # exit()
-# a[0,0] = tq.Variable("a00")
-# a[0,1] = tq.Variable('a01')
-# a[1,0] = tq.Variable('a10')
-# a[1,1] = tq.Variable('a11')
-# da = {'a00':0,'a01':1,'a10':1,'a11':0}
+RA = OR(orbitals=idx,matrix=a)
+a[0,0] = tq.Variable("a00")
+a[0,1] = tq.Variable('a01')
+a[1,0] = tq.Variable('a10')
+a[1,1] = tq.Variable('a11')
+da = {'a00':0,'a01':1,'a10':1,'a11':0}
+# print(tq.gates.X([0,1])+RA.compile())
+# print(RA+tq.gates.X([0,1]))
+exit()
 # # print(vars(a[1,0]),'--',type(a[1,0]))
 # # print(vars(a[1,1]),'--',type(a[1,1]))
 # # print(vars(a[0,0]),'--',type(a[0,0]))

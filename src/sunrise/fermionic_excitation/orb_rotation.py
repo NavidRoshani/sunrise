@@ -4,7 +4,7 @@ from numpy import zeros,eye,allclose,ndarray,array
 
 class OrbitalRotation():
 
-    def __init__(self,orbitals:[int]=None,matrix:[QTensor,ndarray,list]=None):
+    def __init__(self,orbitals:[int]=None,matrix:[QTensor,ndarray,list]=None,molecule=None):
         if isinstance(matrix,list):
             matrix = array(list)
         if isinstance(matrix,ndarray) and not isinstance(matrix,QTensor):
@@ -12,27 +12,61 @@ class OrbitalRotation():
             matrix = QTensor(shape=matrix.shape,objective_list=matrix.reshape(matrix.shape[0]*matrix.shape[1]))
         self.orbital = orbitals
         self.coeff = matrix
+        if molecule is None:
+            geom = ""
+            for k in range(2 * (len(self.coeff) // 2 + 1)):
+                geom += f"h 0.0 0.0 {1.5 * k}\n"
+            dummy = tq.Molecule(geometry=geom, basis_set='sto-3g')
+            self.molecule = dummy
+        else: self.molecule = molecule
         assert len(self.orbital) == len(self.coeff)
         assert self.coeff.ndim == 2
         assert self.coeff.shape[0] == self.coeff.shape[1] #is square
         # assert allclose(eye(len(self.coeff)), self.coeff.dot(self.coeff.T.conj())) #not normalization can be enforced, let to the user
     def __add__(self, other):
-        ndx = list(set(self.orbital+other.orbital))
+        if isinstance(other,QCircuit):
+            return self.compile() + other
+        else:
+            ndx = list(set(self.orbital + other.orbital))
+            pos_idx = [ndx.index(i) for i in self.orbital]
+            pos_jdx = [ndx.index(i) for i in other.orbital]
+            new_a = self.pad_eye(self.coeff, size=len(ndx))
+            new_b = self.pad_eye(other.coeff, size=len(ndx))
+            ra = self._rot_mat(len(ndx), pos_idx)
+            rb = self._rot_mat(len(ndx), pos_jdx)
+            ap = ra.T.dot(new_a.dot(ra))
+            bp = rb.T.dot(new_b.dot(rb))
+            return OrbitalRotation(matrix=bp.dot(ap), orbitals=ndx)
+    def __iadd__(self, other):
+        ndx = list(set(self.orbital + other.orbital))
         pos_idx = [ndx.index(i) for i in self.orbital]
         pos_jdx = [ndx.index(i) for i in other.orbital]
-        new_a = self.pad_eye(self.coeff,size=len(ndx))
-        new_b = self.pad_eye(other.coeff,size=len(ndx))
+        new_a = self.pad_eye(self.coeff, size=len(ndx))
+        new_b = self.pad_eye(other.coeff, size=len(ndx))
         ra = self._rot_mat(len(ndx), pos_idx)
         rb = self._rot_mat(len(ndx), pos_jdx)
         ap = ra.T.dot(new_a.dot(ra))
         bp = rb.T.dot(new_b.dot(rb))
-        return OrbitalRotation(matrix=bp.dot(ap),orbitals=ndx)
+        self.coeff = bp.dot(ap)
+        self.orbital = ndx
+        return self
+    def __radd__(self, other):
+        if isinstance(other,QCircuit):
+            return other + self.compile()
+        else:
+            ndx = list(set(self.orbital + other.orbital))
+            pos_idx = [ndx.index(i) for i in self.orbital]
+            pos_jdx = [ndx.index(i) for i in other.orbital]
+            new_a = self.pad_eye(self.coeff, size=len(ndx))
+            new_b = self.pad_eye(other.coeff, size=len(ndx))
+            ra = self._rot_mat(len(ndx), pos_idx)
+            rb = self._rot_mat(len(ndx), pos_jdx)
+            ap = ra.T.dot(new_a.dot(ra))
+            bp = rb.T.dot(new_b.dot(rb))
+            return OrbitalRotation(matrix=ap.dot(bp), orbitals=ndx)
     def compile(self,**kwargs)->QCircuit:
-        geom = ""
-        for k in range(2*(len(self.coeff)//2+1)):
-            geom += f"h 0.0 0.0 {1.5 * k}\n"
-        dummy = tq.Molecule(geometry=geom,basis_set='sto-3g')
-        U = dummy.get_givens_circuit(unitary=self.coeff,**kwargs)
+
+        U = self.molecule.get_givens_circuit(unitary=self.coeff,**kwargs)
         d = {2*i:2*idx for i,idx in enumerate(self.orbital)}
         d.update({2*i+1:2*idx+1 for i,idx in enumerate(self.orbital)})
         U = U.map_qubits(qubit_map=d)
