@@ -2,13 +2,15 @@ import tequila as tq
 from tequila import QCircuit,QTensor
 from numpy import zeros,eye,allclose,ndarray,array
 
+from tequila.circuit._gates_impl import ParametrizedGateImpl, QGateImpl
+
 
 def OR(*args, **kwargs):
     gate = OrbitalRotation(*args, **kwargs)
     return tq.QCircuit.wrap_gate(gate)
 
 # gate impl
-class OrbitalRotation:
+class OrbitalRotation(QGateImpl):
 
     def __init__(self,orbitals:[int]=None,matrix:[QTensor,ndarray,list]=None,molecule=None):
         if isinstance(matrix,list):
@@ -28,10 +30,21 @@ class OrbitalRotation:
         assert len(self.orbital) == len(self.coeff)
         assert self.coeff.ndim == 2
         assert self.coeff.shape[0] == self.coeff.shape[1] #is square
+        taget = []
+        for i in self.orbital:
+            taget.append(2*i)
+            taget.append(2*i+1)
+        super().__init__(name="OrbRot", target=taget, control=None)
         # assert allclose(eye(len(self.coeff)), self.coeff.dot(self.coeff.T.conj())) #not normalization can be enforced, let to the user
+
+    def is_parametrized(self) -> bool:
+        return True
+    def extract_variables(self):
+        return self.coeff.extract_variables()
+
     def __add__(self, other):
         if isinstance(other,QCircuit):
-            return self.to_tequila() + other
+            return self.compile() + other
         else:
             ndx = list(set(self.orbital + other.orbital))
             pos_idx = [ndx.index(i) for i in self.orbital]
@@ -59,9 +72,18 @@ class OrbitalRotation:
     def __radd__(self, other):
         return self.__add__(other)
 
-    def to_tequila(self, **kwargs)->QCircuit:
-
-        U = self.molecule.get_givens_circuit(unitary=self.coeff,**kwargs)
+    def compile(self, **kwargs)->QCircuit:
+        if "tol" in kwargs:
+            tol = kwargs['tol']
+            kwargs.pop('tol')
+        else:
+            tol = 1e-12
+        if 'ordering' in kwargs:
+            ordering = kwargs['ordering']
+            kwargs.pop('ordering')
+        else:
+            ordering = 'Optimized'
+        U = self.molecule.get_givens_circuit(unitary=self.coeff,tol=tol,ordering=ordering)
         d = {2*i:2*idx for i,idx in enumerate(self.orbital)}
         d.update({2*i+1:2*idx+1 for i,idx in enumerate(self.orbital)})
         U = U.map_qubits(qubit_map=d)
