@@ -2,7 +2,13 @@ import tequila as tq
 from tequila import QCircuit,QTensor
 from numpy import zeros,eye,allclose,ndarray,array
 
-class OrbitalRotation():
+
+def OR(*args, **kwargs):
+    gate = OrbitalRotation(*args, **kwargs)
+    return tq.QCircuit.wrap_gate(gate)
+
+# gate impl
+class OrbitalRotation:
 
     def __init__(self,orbitals:[int]=None,matrix:[QTensor,ndarray,list]=None,molecule=None):
         if isinstance(matrix,list):
@@ -25,7 +31,7 @@ class OrbitalRotation():
         # assert allclose(eye(len(self.coeff)), self.coeff.dot(self.coeff.T.conj())) #not normalization can be enforced, let to the user
     def __add__(self, other):
         if isinstance(other,QCircuit):
-            return self.compile() + other
+            return self.to_tequila() + other
         else:
             ndx = list(set(self.orbital + other.orbital))
             pos_idx = [ndx.index(i) for i in self.orbital]
@@ -51,20 +57,9 @@ class OrbitalRotation():
         self.orbital = ndx
         return self
     def __radd__(self, other):
-        if isinstance(other,QCircuit):
-            return other + self.compile()
-        else:
-            ndx = list(set(self.orbital + other.orbital))
-            pos_idx = [ndx.index(i) for i in self.orbital]
-            pos_jdx = [ndx.index(i) for i in other.orbital]
-            new_a = self.pad_eye(self.coeff, size=len(ndx))
-            new_b = self.pad_eye(other.coeff, size=len(ndx))
-            ra = self._rot_mat(len(ndx), pos_idx)
-            rb = self._rot_mat(len(ndx), pos_jdx)
-            ap = ra.T.dot(new_a.dot(ra))
-            bp = rb.T.dot(new_b.dot(rb))
-            return OrbitalRotation(matrix=ap.dot(bp), orbitals=ndx)
-    def compile(self,**kwargs)->QCircuit:
+        return self.__add__(other)
+
+    def to_tequila(self, **kwargs)->QCircuit:
 
         U = self.molecule.get_givens_circuit(unitary=self.coeff,**kwargs)
         d = {2*i:2*idx for i,idx in enumerate(self.orbital)}
