@@ -20,7 +20,7 @@ def plot_MO(molecule:tq.Molecule=None,filename:str=None,orbital:list=None,print_
     if filename is None:
         filename = molecule.parameters.name
     if orbital is None:
-        orbital = [*range(molecule.n_orbitals)]
+        orbital = [*range(molecule.integral_manager.orbital_coefficients)]
     pmol = gto.Mole()
     pmol.build(atom=molecule.parameters.geometry, basis=molecule.parameters.basis_set, spin=0)
     if density or mep:
