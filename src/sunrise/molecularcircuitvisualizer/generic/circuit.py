@@ -1,5 +1,5 @@
 from typing import List
-
+from copy import deepcopy
 from ..core import Gate
 import tequila as tq
 
@@ -24,7 +24,8 @@ class Circuit(Gate):
 
     def _render(self, state, style) -> str:
         output = ""
-        for gate in self.gates:
+        sim = self._simplify_circuit()
+        for gate in sim.gates:
             output += gate.render(state, style) + " \n"
         return output
 
@@ -45,3 +46,12 @@ class Circuit(Gate):
         for gate in self.gates:
             gates.append(gate.map_variables(variables))
         return Circuit(gates)
+    def _simplify_circuit(self) -> "Circuit":
+        from ..generic import GenericGate
+        cp = deepcopy(self)
+        for g in range(len(self.gates)-1)[::-1]:
+            if isinstance(self.gates[g],GenericGate) and isinstance(self.gates[g+1],GenericGate):
+                cp.gates[g].U += cp.gates[g+1].U
+                cp.gates[g].qubits = [*set(cp.gates[g].qubits+cp.gates[g+1].qubits)]
+                cp.gates.pop(g+1)
+        return cp
