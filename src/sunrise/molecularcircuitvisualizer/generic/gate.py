@@ -44,7 +44,14 @@ class GenericGate(Gate):
         if not n_qubits_is_double:
             spatial = [q // 2 for q in self.qubits]  # half the number of qubits visualized
             self.qubits = list(set(spatial))
-
+    def __str__(self):
+        res = type(self).__name__
+        res += ' ' + self.name.title()
+        circ = ' with gates: '
+        for gate in self.U.gates:
+            circ += f'{gate.name }{gate.qubits}'
+        res += circ
+        return res
     def construct_circuit(self):
         return self.U
 

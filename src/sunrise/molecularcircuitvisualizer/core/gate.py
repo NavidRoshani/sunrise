@@ -132,3 +132,9 @@ class Gate(abc.ABC):
         This method should return the daggered gate.
         """
         pass
+
+    def __str__(self):
+        res = type(self).__name__
+        U = self.used_wires()
+        res += f': qubits {U}'
+        return res

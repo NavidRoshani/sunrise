@@ -18,7 +18,11 @@ class Circuit(Gate):
     def __add__(self, other: Gate):
         self.gates.append(other)
         return self
-
+    def __str__(self):
+        res = "Circuit:\n"
+        for gate in self.gates:
+            res += gate.__str__() +'\n'
+        return res
     def dagger(self) -> "Circuit":
         return Circuit([gate.dagger() for gate in reversed(self.gates)])
 
