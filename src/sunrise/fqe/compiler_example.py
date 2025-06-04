@@ -3,6 +3,9 @@ import openfermion
 import tequila as tq
 import numpy
 import time
+
+# tq.show_available_simulators()
+
 ## created https://github.com/JdelArco98/tequila.git with the modifications Jakob said
 def compile_circuit(circuit):
     fc = []
@@ -14,8 +17,10 @@ def compile_circuit(circuit):
         if isinstance(gate, tq.quantumchemistry.qc_base.FermionicGateImpl):
             p = gate.parameter.name
             idx = p[0]
-        op = mol.make_excitation_generator(indices=idx, fermionic=True)
+        # print(idx)
+        op = mol.make_excitation_generator(indices=idx, fermion=True)
         fc.append(op)
+        print(f"fc: {fc}")
     return fc
 
 geom = """
@@ -48,6 +53,7 @@ print("took {}s".format(end-start))
 start = time.time()
 variables = [variables[gate.parameter] for gate in U.gates]
 for i,g in enumerate(FU):
+    print(g)
     wfn = wfn.time_evolve(-0.5*variables[i], g)
 energy = wfn.expectationValue(HH)
 end = time.time()
@@ -56,7 +62,7 @@ print("took {}s".format(end-start))
 wfn = fqe.Wavefunction([[mol.n_electrons, 0, mol.n_orbitals]])
 wfn.set_wfn(strategy="hartree-fock")
 EY = tq.compile(E, backend="fqe",  wfn=wfn, FH=HH, FU=FU, vnames=U.extract_variables())
-energy2 = EY(result.variables)
+energy = EX(result.variables)
 energy2 = EY(result.variables)
 
 result2 = tq.minimize(E, gradient="2-point",  backend="fqe", wfn=wfn, FH=HH, FU=FU, vnames=U.extract_variables())
