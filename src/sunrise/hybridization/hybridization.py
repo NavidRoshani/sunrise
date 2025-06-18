@@ -25,7 +25,6 @@ class Graph:
 
         # Track current bond counts for each atom to ensure we respect max_bonds:
         bond_counts = {atom: 0 for atom in self.atoms}
-
         for i in range(num_atoms):
             for j in range(i + 1, num_atoms):
                 if bond_matrix[i, j]:
@@ -38,20 +37,19 @@ class Graph:
 
                         bond_counts[self.atoms[i]] += 1
                         bond_counts[self.atoms[j]] += 1
-
         # Next, increase the bond multiplicity wherever possible.
         for i in range(num_atoms):
-            for j in range(i + 1, num_atoms):
+            #Preference in the bond multiplicity by smaller bonding, otherwise it would  be preference by order on the Zmatrix
+            bonded = {j:distances[i,j] for j in range(num_atoms) if self.bond_matrix[i][j] > 0}
+            bonded = dict(sorted(bonded.items(), key=lambda item: item[1]))
+            for j in bonded:
                 # Check if there's already a bond between atoms i and j
-                if self.bond_matrix[i][j] > 0:
-                    while (bond_counts[self.atoms[i]] < self.atoms[i].max_bonds and
-                           bond_counts[self.atoms[j]] < self.atoms[j].max_bonds):
-                        # Increase the bond multiplicity
-                        self.bond_matrix[i][j] += 1
-                        self.bond_matrix[j][i] += 1
-                        bond_counts[self.atoms[i]] += 1
-                        bond_counts[self.atoms[j]] += 1
-
+                while (bond_counts[self.atoms[i]] < self.atoms[i].max_bonds and bond_counts[self.atoms[j]] < self.atoms[j].max_bonds):
+                    # Increase the bond multiplicity
+                    self.bond_matrix[i][j] += 1
+                    self.bond_matrix[j][i] += 1
+                    bond_counts[self.atoms[i]] += 1
+                    bond_counts[self.atoms[j]] += 1
         # Now bond all remaining atoms, prioritizing those with the most missing bonds
         offset_distances = distances - bonding_threshold
 
@@ -82,27 +80,35 @@ class Graph:
     def is_bonded(self, atom1, atom2):
         return self.bond_matrix[self.atom_indices[atom1]][self.atom_indices[atom2]] != 0
 
-    def get_bonds(self, atom):
+    def get_bonds(self, atom)->(Atom):
         return self.bonds.get(atom, [])
 
-    def get_bond_multiplicity(self, atom1, atom2):
+    def get_bond_multiplicity(self, atom1, atom2)->int:
         return self.bond_matrix[self.atom_indices[atom1]][self.atom_indices[atom2]]
 
-    def get_multiplied_bonds(self, atom):
+    def get_multiplied_bonds(self, atom)->(Atom):
         """
         Returns a list of bonds for the given atom. For multiple bonds between two atoms,
         it returns the bond multiple times based on the bond multiplicity.
         """
-        multiplied_bonds = []
-        atom_idx = self.atom_indices[atom]
+        #NOTE: This commented version is original Steinhauser code. It returs [X0,X1,X1,X2...] while mine returns [X0,X1,X2,...,X1,...]
 
-        for bonded_atom in self.get_bonds(atom):
-            bonded_atom_idx = self.atom_indices[bonded_atom]
-            bond_count = self.bond_matrix[atom_idx][bonded_atom_idx]
 
-            for _ in range(bond_count):
-                multiplied_bonds.append(bonded_atom)
+        # multiplied_bonds = []
+        # atom_idx = self.atom_indices[atom]
 
+        # for bonded_atom in self.get_bonds(atom):
+        #     bonded_atom_idx = self.atom_indices[bonded_atom]
+        #     bond_count = self.bond_matrix[atom_idx][bonded_atom_idx]
+
+        #     for _ in range(bond_count):
+        #         multiplied_bonds.append(bonded_atom)
+
+        multiplied_bonds = [*self.get_bonds(atom)]
+        for bonded in self.get_bonds(atom=atom):
+            multi = self.get_bond_multiplicity(atom,bonded)
+            if multi > 1:
+                multiplied_bonds += (multi-1)*[bonded]
         return multiplied_bonds
 
     @staticmethod
@@ -126,6 +132,9 @@ class Graph:
                     visited.add(bond)
 
         return edges
+
+    def get_atom_indices(self,atom)->int:
+        return self.atom_indices[atom]
 
     @staticmethod
     def get_angle(atom, neighbor1, neighbor2):
@@ -315,11 +324,6 @@ class Graph:
         rotated_hybrids = HybridizationUtils.kabsch_alignment(selected_hybrid_orbitals, final_hybrid_orbitals)
         # rotated_hybrids = HybridizationUtils.correct_signs(rotated_hybrids, final_hybrid_orbitals)
 
-        # print(f"SP Base: {selected_hybrid_orbitals}")
-        # print(f"Vectors: {vectors}")
-        # print(f"Hybridized Vectors: {final_hybrid_orbitals}")
-        # print(f"Aligned Hybridized Vectors: {rotated_hybrids}")
-
         if (try_align): final_hybrid_orbitals = rotated_hybrids
 
         # Replace the aligned results into the hybrid orbital matrix (s, px, py, pz contributions)
@@ -385,22 +389,23 @@ class Graph:
         bond_data = [self.get_bonds(atom) for atom in self.atoms]
         size = sum(matrix.shape[0] for matrix in matrices)
         coefficient_matrix = np.zeros((size, size))
-
         # Fill the final matrix by placing each matrix along the diagonal
         current_index = 0
         matrix_indices = []
         for matrix in matrices:
             matrix_size = matrix.shape[0]  # Size of the individual matrix (5x5 or 1x1, etc.)
-            coefficient_matrix[current_index:current_index + matrix_size,
-            current_index:current_index + matrix_size] = matrix
+            coefficient_matrix[current_index:current_index + matrix_size,current_index:current_index + matrix_size] = matrix
             matrix_indices.append(current_index)
             current_index += matrix_size  # Move the starting point for the next block
-
         applied_bonds = set()  # To avoid double application of transformations
+        rows_start = {i:matrix_indices[i] for i in range(len(self.atoms))}
+        # print("rows_start ",rows_start)
         for i, atom_bonds in enumerate(bond_data):
-            atom_matrix_start = matrix_indices[i]
+            # print('============================')
+            # print(f'Atom {self.atoms[i].symbol}_{i} bonde with')
             for j, neighbor_atom in enumerate(atom_bonds):
                 neighbor_idx = self.atom_indices[neighbor_atom]
+                # print(f'  -Atom {neighbor_atom.symbol}_{neighbor_idx}')
 
                 # Only apply transformation once per bond
                 bond_pair = tuple(sorted((i, neighbor_idx)))
@@ -408,36 +413,66 @@ class Graph:
                     continue
                 applied_bonds.add(bond_pair)
 
-                neighbor_matrix_start = matrix_indices[neighbor_idx]
+                # neighbor_matrix_start = matrix_indices[neighbor_idx]
 
                 # Determine which rows to modify (ignoring 1s orbital row in 5x5 matrices)
                 atom_matrix_size = matrices[i].shape[0]
                 neighbor_matrix_size = matrices[neighbor_idx].shape[0]
 
                 if atom_matrix_size == 1:
-                    bond_row_i = atom_matrix_start  # Size 1, so only one orbital
+                    bond_row_i = rows_start[i]  # Size 1, so only one orbital
                 else:
-                    bond_row_i = atom_matrix_start + j
-                    if not strip_orbitals: bond_row_i += 1  # Bonding row starts at 1 due to skipping 1s
+                    bond_row_i = rows_start[i] + j + (not strip_orbitals) # Bonding row starts at 1 due to skipping 1s
 
                 if neighbor_matrix_size == 1:
-                    bond_row_neighbor = neighbor_matrix_start  # Size 1, so only one orbital
+                    bond_row_neighbor = rows_start[neighbor_idx]  # Size 1, so only one orbital
                 else:
-                    bond_row_neighbor = neighbor_matrix_start + bond_data[neighbor_idx].index(self.atoms[i])
-                    if not strip_orbitals: bond_row_neighbor += 1  # Bonding row starts at 1 due to skipping 1s
-
+                    bond_row_neighbor = rows_start[neighbor_idx] + bond_data[neighbor_idx].index(self.atoms[i]) + (not strip_orbitals) # Bonding row starts at 1 due to skipping 1s
+                # print('i position: ',rows_start[i] + j + (not strip_orbitals))
+                # print('j position: ',rows_start[neighbor_idx] + bond_data[neighbor_idx].index(self.atoms[i]) + (not strip_orbitals))
                 # Construct line addition transformation matrix for the bond
                 transformation_matrix = np.eye(size)  # Start with identity matrix
                 transformation_matrix[bond_row_i, bond_row_neighbor] = 1  # 1 for bond alignment
                 transformation_matrix[bond_row_neighbor, bond_row_i] = -1  # Symmetry
                 # theta = np.pi / 2  # 30 degree rotation (can be adjusted)
                 # transformation_matrix = MatrixUtils.givens_rotation_matrix(size, bond_row_i, bond_row_neighbor, theta)
-                # print(MatrixUtils.is_unitary(transformation_matrix))
 
                 # Apply this transformation to the overall matrix by multiplying
                 coefficient_matrix = np.dot(transformation_matrix, coefficient_matrix)
-        # print(coefficient_matrix)
-
+        del current_index
+        positions = np.array([atom.coords for atom in self.atoms])
+        diff = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
+        del positions
+        distances = np.sqrt(np.sum(diff ** 2, axis=2))
+        del diff
+        indices = {i:len(bond_data[i]) for i in range(len(self.atoms)) if len(bond_data[i])<self.atoms[i].max_bonds}  
+        # print("Indices ",indices)
+        for i in indices:
+            bonded = {self.atom_indices[neighbor_atom]:distances[i,self.atom_indices[neighbor_atom]] for neighbor_atom in bond_data[i] if len(bond_data[self.atom_indices[neighbor_atom]]) < neighbor_atom.max_bonds and self.get_bond_multiplicity(self.atoms[i],neighbor_atom)>1}
+            bonded = dict(sorted(bonded.items(), key=lambda item: item[1]))
+            while indices[i]<self.atoms[i].max_bonds:
+                # print('------------------------')
+                # print(f'atom {self.atoms[i].symbol}_{i} has {len(bond_data[i])} bonded but can go up to {self.atoms[i].max_bonds}. Then ===>')
+                # print(f"Bonded {bonded}")
+                for j in bonded:
+                    neighbor_atom = self.atoms[j]
+                    multi = self.get_bond_multiplicity(self.atoms[i],neighbor_atom)
+                    # print(f'Bond multi {self.atoms[i].symbol}_{i}-{neighbor_atom.symbol}_{j} ==> {multi}')
+                    b = 0
+                    while b < multi-1:
+                        # print("Currendo Bonds i ",indices[i])
+                        # print("Currendo Bonds j ",indices[j])
+                        bond_row_i = rows_start[i] + len(self.get_bonds(self.atoms[i])) + (not strip_orbitals) + b
+                        bond_row_neighbor = rows_start[j] + len(self.get_bonds(self.atoms[i])) + (not strip_orbitals) + b
+                        # print('Star i',bond_row_i)
+                        # print('Star j',bond_row_neighbor)
+                        transformation_matrix = np.eye(size)  # Start with identity matrix
+                        transformation_matrix[bond_row_i, bond_row_neighbor] = 1  # 1 for bond alignment
+                        transformation_matrix[bond_row_neighbor, bond_row_i] = -1  # Symmetry
+                        indices[j] += 1
+                        indices[i] += 1
+                        b +=1
+                        coefficient_matrix = np.dot(transformation_matrix, coefficient_matrix)
         return coefficient_matrix
 
     def get_spa_edges(self, collapse=True,strip_orbitals:bool=True):
@@ -453,7 +488,6 @@ class Graph:
         index = 0  # Global index for assigning electrons
         edges = []  # List to hold the final SPA edges
         edges_to_append = {}  # Tracks remaining electrons for bonds that haven't been finalized yet
-
         for atom in self.atoms:
             bonds = self.get_multiplied_bonds(atom)  # Get bonded atoms (bonding partners)
             remaining_bonds = len(bonds)
@@ -472,7 +506,6 @@ class Graph:
             for shell_idx, electrons_in_shell in enumerate(electrons_by_shell):
                 if shell_idx >= len(max_electrons_by_shell):
                     break
-
                 max_bonding_capacity = max_electrons_by_shell[shell_idx] // 2 #max_bond = when shell half filled = number orbs
                 bonding_capacity = max_bonding_capacity
                 if electrons_in_shell > max_bonding_capacity: # if more than half filled WHY ONLY IF BIGGER, NOT SMALLER
@@ -482,12 +515,9 @@ class Graph:
                 # Step 1: Assign bondable electrons to bonds -> {atom_i:[b_j,b_k,...]}
                 while (remaining_bonding_capacity > 0 and remaining_bonds > 0):
                     bonded_atom = bonds[bond_index] #current bonding partner
-                    if atom in edges_to_append and len(edges_to_append[atom]) > bond_index:
-                        edges.append((edges_to_append[atom][bond_index], index)) # it has been already on one side
-                    else:
-                        edges_to_append.setdefault(bonded_atom, []) # placeholder, bond with only one side -> {a_i:[]}
-                        edges_to_append[bonded_atom].append(index) # {a_i,[b_j,b_k,...]}
-                        # print("Append to edge-> ",edges_to_append)
+                    edges_to_append.setdefault(atom, {}) # placeholder, bond with only one side -> {a_i:[]}
+                    edges_to_append[atom].setdefault(bonded_atom,[]) # {a_i,[b_j,b_k,...]}
+                    edges_to_append[atom][bonded_atom].append(index)
                     remaining_bonding_capacity -= 1
                     remaining_bonds -= 1
                     bond_index += 1 #next bond
@@ -505,7 +535,17 @@ class Graph:
                         edges.append((index,))
                         remaining_unbondable_electrons -= 1
                         index += 1
+        for atom in edges_to_append:
+            for bond in edges_to_append[atom]:
+                assert bond in edges_to_append[atom]
+                assert atom in edges_to_append[bond]
+                assert len(edges_to_append[atom][bond])==len(edges_to_append[bond][atom])
+                for i in range(len(edges_to_append[atom][bond])):
+                    edges.append(tuple(set((edges_to_append[atom][bond][i],edges_to_append[bond][atom][i]))))
+                edges_to_append[atom][bond]=[]
+                edges_to_append[bond][atom]=[]
         return edges
+
 
     def rotate_around_point(self, angle, axis, point=None):
         """

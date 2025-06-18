@@ -315,7 +315,7 @@ class HybridBase(qc_base):
         to_active = {active[i]: to_active[i] for i in range(len(active))}
         if len(core):
             coeff = orthogonalize(c, d, s)
-            if not all([i == to_active[i] for i in to_active]):
+            if not all([i == to_active[i] for i in to_active]) and len(self.BOS_MO) and len(self.FER_MO):
                 print("Orbital may be reordered, please double check F/B selection")
             if len(active) == len(self.select):
                 new_select = {i: self.select[i] for i in range(len(active))}
@@ -1214,7 +1214,7 @@ class HybridBase(qc_base):
         U = gates.X(target=[pos[2*i.idx] for i in self.reference_orbitals])
         U.n_qubits = self.n_orbitals
         return U
-    def make_ansatz(self, name: str, *args, **kwargs):
+    def make_ansatz(self, name: str, *args, **kwargs)->QCircuit:
         """
         Automatically calls the right subroutines to construct ansatze implemented in tequila.chemistry
         name: namne of the ansatz, examples are: UpCCGSD, UpCCD, SPA, UCCSD, SPA+UpCCD, SPA+GS
