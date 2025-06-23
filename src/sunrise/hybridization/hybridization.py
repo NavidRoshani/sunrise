@@ -340,7 +340,8 @@ class Graph:
     def apply_hybridization(self, atom, sp='Auto', strip_orbitals=False):
         bonded_atoms = self.get_bonds(atom)
 
-        if len(bonded_atoms) == 0 or sp == None: return np.eye(1)
+        if len(bonded_atoms) == 0 or sp == None:
+            return np.eye(5 if not strip_orbitals else 4)
         hit_data = None
 
         if sp == 'Auto':
@@ -446,33 +447,23 @@ class Graph:
         distances = np.sqrt(np.sum(diff ** 2, axis=2))
         del diff
         indices = {i:len(bond_data[i]) for i in range(len(self.atoms)) if len(bond_data[i])<self.atoms[i].max_bonds}  
-        # print("Indices ",indices)
         for i in indices:
             bonded = {self.atom_indices[neighbor_atom]:distances[i,self.atom_indices[neighbor_atom]] for neighbor_atom in bond_data[i] if len(bond_data[self.atom_indices[neighbor_atom]]) < neighbor_atom.max_bonds and self.get_bond_multiplicity(self.atoms[i],neighbor_atom)>1}
             bonded = dict(sorted(bonded.items(), key=lambda item: item[1]))
-            while indices[i]<self.atoms[i].max_bonds:
-                # print('------------------------')
-                # print(f'atom {self.atoms[i].symbol}_{i} has {len(bond_data[i])} bonded but can go up to {self.atoms[i].max_bonds}. Then ===>')
-                # print(f"Bonded {bonded}")
-                for j in bonded:
-                    neighbor_atom = self.atoms[j]
-                    multi = self.get_bond_multiplicity(self.atoms[i],neighbor_atom)
-                    # print(f'Bond multi {self.atoms[i].symbol}_{i}-{neighbor_atom.symbol}_{j} ==> {multi}')
-                    b = 0
-                    while b < multi-1:
-                        # print("Currendo Bonds i ",indices[i])
-                        # print("Currendo Bonds j ",indices[j])
-                        bond_row_i = rows_start[i] + len(self.get_bonds(self.atoms[i])) + (not strip_orbitals) + b
-                        bond_row_neighbor = rows_start[j] + len(self.get_bonds(self.atoms[i])) + (not strip_orbitals) + b
-                        # print('Star i',bond_row_i)
-                        # print('Star j',bond_row_neighbor)
-                        transformation_matrix = np.eye(size)  # Start with identity matrix
-                        transformation_matrix[bond_row_i, bond_row_neighbor] = 1  # 1 for bond alignment
-                        transformation_matrix[bond_row_neighbor, bond_row_i] = -1  # Symmetry
-                        indices[j] += 1
-                        indices[i] += 1
-                        b +=1
-                        coefficient_matrix = np.dot(transformation_matrix, coefficient_matrix)
+            for j in bonded:
+                neighbor_atom = self.atoms[j]
+                multi = self.get_bond_multiplicity(self.atoms[i],neighbor_atom)
+                b = 0
+                while b < multi-1:
+                    bond_row_i = rows_start[i] + len(self.get_bonds(self.atoms[i])) + (not strip_orbitals) + b
+                    bond_row_neighbor = rows_start[j] + len(self.get_bonds(self.atoms[i])) + (not strip_orbitals) + b
+                    transformation_matrix = np.eye(size)  # Start with identity matrix
+                    transformation_matrix[bond_row_i, bond_row_neighbor] = 1  # 1 for bond alignment
+                    transformation_matrix[bond_row_neighbor, bond_row_i] = -1  # Symmetry
+                    indices[j] += 1
+                    indices[i] += 1
+                    b +=1
+                    coefficient_matrix = np.dot(transformation_matrix, coefficient_matrix)
         return coefficient_matrix
 
     def get_spa_edges(self, collapse=True,strip_orbitals:bool=True):
@@ -541,7 +532,7 @@ class Graph:
                 assert atom in edges_to_append[bond]
                 assert len(edges_to_append[atom][bond])==len(edges_to_append[bond][atom])
                 for i in range(len(edges_to_append[atom][bond])):
-                    edges.append(tuple(set((edges_to_append[atom][bond][i],edges_to_append[bond][atom][i]))))
+                    edges.append(tuple(sorted((edges_to_append[atom][bond][i],edges_to_append[bond][atom][i]))))
                 edges_to_append[atom][bond]=[]
                 edges_to_append[bond][atom]=[]
         return edges
