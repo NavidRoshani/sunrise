@@ -448,7 +448,7 @@ class Graph:
         del diff
         indices = {i:len(bond_data[i]) for i in range(len(self.atoms)) if len(bond_data[i])<self.atoms[i].max_bonds}  
         for i in indices:
-            bonded = {self.atom_indices[neighbor_atom]:distances[i,self.atom_indices[neighbor_atom]] for neighbor_atom in bond_data[i] if len(bond_data[self.atom_indices[neighbor_atom]]) < neighbor_atom.max_bonds and self.get_bond_multiplicity(self.atoms[i],neighbor_atom)>1}
+            bonded = {self.atom_indices[neighbor_atom]:distances[i,self.atom_indices[neighbor_atom]] for neighbor_atom in bond_data[i] if self.atom_indices[neighbor_atom]> i and len(bond_data[self.atom_indices[neighbor_atom]]) < neighbor_atom.max_bonds and self.get_bond_multiplicity(self.atoms[i],neighbor_atom)>1}
             bonded = dict(sorted(bonded.items(), key=lambda item: item[1]))
             for j in bonded:
                 neighbor_atom = self.atoms[j]
