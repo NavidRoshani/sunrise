@@ -106,7 +106,7 @@ def fold_rotators(mol, UR):
     tg = np.einsum("xjkl, ix -> ijkl", tg, UR_matrix, optimize='greedy')
 
     tmol = tq.Molecule(geometry=mol.parameters.geometry, nuclear_repulsion=c, one_body_integrals=th,
-                       two_body_integrals=tg, basis_set=mol.parameters.basis_set)
+                       two_body_integrals=tg, basis_set=mol.parameters.basis_set, ordering='openfermion')
 
     return tmol
 
@@ -140,9 +140,9 @@ def get_hcb_part(mol):
 
     # Create the HCB and residual molecule
     hcb_mol = tq.Molecule(geometry=mol.parameters.geometry, nuclear_repulsion=c, one_body_integrals=hcb_h, two_body_integrals=hcb_g,
-                          basis_set=mol.parameters.basis_set)
+                          basis_set=mol.parameters.basis_set, ordering='openfermion')
     res_mol = tq.Molecule(geometry=mol.parameters.geometry, nuclear_repulsion=0, one_body_integrals=res_h, two_body_integrals=res_g,
-                              basis_set=mol.parameters.basis_set)
+                          basis_set=mol.parameters.basis_set, ordering='openfermion')
 
     return hcb_mol, res_mol
 
