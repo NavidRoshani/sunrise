@@ -2,8 +2,9 @@ from tencirchem.static.ucc import *
 from functools import partial
 from collections import defaultdict
 from time import time
-from typing import Any, Tuple, Callable, List, Union
-
+from typing import  Tuple, Callable, Union
+from numbers import Number
+from copy import deepcopy
 import numpy as np
 from scipy.optimize import minimize
 import pandas as pd
@@ -12,20 +13,17 @@ from pyscf.scf import RHF
 import tensorcircuit as tc
 
 from tencirchem.constants import DISCARD_EPS
-from tencirchem.molecule import _Molecule
-from tencirchem.utils.misc import reverse_qop_idx, scipy_opt_wrap, rdm_mo2ao, canonical_mo_coeff
+from tencirchem.utils.misc import scipy_opt_wrap
 from tencirchem.utils.circuit import get_circuit_dataframe
 from tencirchem.static.engine_ucc import (
     get_civector,
     get_statevector,
-    apply_excitation,
     translate_init_state,
-    get_energy,get_energy_and_grad,
 )
-from tencirchem.static.ci_utils import get_ci_strings, get_ex_bitstring, get_addr, get_init_civector
+from tencirchem.static.ci_utils import get_ci_strings, get_ex_bitstring, get_init_civector
 from tencirchem.static.evolve_tensornetwork import get_circuit
-from .engine_braket import get_expval,get_expval_and_grad
-from tequila import Objective,Variable,QTensor
+from .engine_braket import get_expval,get_expval_and_grad,get_energy_and_grad
+from tequila import Objective,Variable,simulate
 
 class EXPVAL(UCC):
     def __init__(
@@ -101,10 +99,7 @@ class EXPVAL(UCC):
         self._init_state_ket = None
         self.ex_ops_bra = None
         self.ex_ops_ket = None
-        self._param_ids_bra = None
-        self._param_ids_ket = None
-        # self.init_guess_bra = None
-        self.init_guess:dict = None #init_guess for al variables, type {"a":1,...}
+        self._init_guess = None #init_guess for al variables, type {"a":1,...}, or [1,2,] if in the same order as self.total_variables
         # optimization related
         self.scipy_minimize_options = None
         # optimization result
@@ -112,11 +107,12 @@ class EXPVAL(UCC):
         # for manually set
         self._params_bra = None
         self._params_ket = None
+        self._variables_bra = []
+        self._variables_ket = []
         delattr(self,'_params')
-        # delattr(self,'init_guess')
+        delattr(self,'init_guess')
         delattr(self,'_param_ids')
         delattr(self,'_init_state')
-
 
     def get_opt_function(self, with_time: bool = False) -> Union[Callable, Tuple[Callable, float]]:
         """
@@ -136,18 +132,32 @@ class EXPVAL(UCC):
         time: float
             Staging time. Returned when ``with_time`` is set to ``True``.
         """
-        expval_and_grad = scipy_opt_wrap(partial(self.expval_and_grad, engine=self.engine))
+        if all([i is None for i in [self.init_state_bra,self.ex_ops_bra,self.params_bra]]) or self.is_diagonal():
+            expval_and_grad = scipy_opt_wrap(partial(self.energy_and_grad, engine=self.engine))
+        else:
+            expval_and_grad = scipy_opt_wrap(partial(self.expval_and_grad, engine=self.engine))
 
         time1 = time()
         if tc.backend.name == "jax":
             logger.info("JIT compiling the circuit")
-            _ = expval_and_grad(np.zeros(self.n_params))
+            _ = expval_and_grad(np.zeros(self.n_variables))
             logger.info("Circuit JIT compiled")
         time2 = time()
         if with_time:
             return expval_and_grad, time2 - time1
         return expval_and_grad
-    
+
+    def is_diagonal(self)->bool:
+        '''
+        Check is bra==ket, does not check if bra == None 
+        '''
+        if not (all([ex in self.ex_ops_bra for ex in self.ex_ops_ket]) and all([ex in self.ex_ops_ket for ex in self.ex_ops_bra])):
+            return False
+        if not np.allclose(self.init_state_bra,self.init_state_ket):
+            return False
+        if not (all([pa in self.params_bra for pa in self.params_ket]) and all([pa in self.params_ket for pa in self.params_bra])):
+            return False
+        return True
 
     def kernel(self) -> float:
         """
@@ -160,9 +170,6 @@ class EXPVAL(UCC):
         e: float
             The optimized energy
         """
-        assert len(self.param_ids_ket) == len(self.ex_ops_ket)
-        assert len(self.param_ids_bra) == len(self.ex_ops_bra)
-        #TODO: here I should check if all in bra==ket, and run super().kernel() will be faster and avoid problem two many variabls
         energy_and_grad, stating_time = self.get_opt_function(with_time=True)
         
         if self.init_guess is None:
@@ -173,15 +180,10 @@ class EXPVAL(UCC):
             options = {"ftol": 1e1 * np.finfo(tc.rdtypestr).eps, "gtol": 1e2 * np.finfo(tc.rdtypestr).eps}
         else:
             options = self.scipy_minimize_options
-        # x0 = [*self.init_guess_bra.copy()]
-        # x1 = [*self.init_guess.copy()]
-        # x0 = x0+x1
-        print("N Variables ",self.n_variables)
-        wrap_energy_and_grad = _EvalContainer(energy_and_grad,self.params)
-
+            
         logger.info("Begin optimization")
         time1 = time()
-        opt_res = minimize(wrap_energy_and_grad, x0=self.init_guess, jac=True, method="L-BFGS-B", options=options)
+        opt_res = minimize(energy_and_grad, x0=self.init_guess, jac=True, method="L-BFGS-B", options=options)
         time2 = time()
 
         if not opt_res.success:
@@ -190,28 +192,27 @@ class EXPVAL(UCC):
         opt_res["staging_time"] = stating_time
         opt_res["opt_time"] = time2 - time1
         opt_res["init_guess"] = self.init_guess
-        # opt_res["init_guess_ket"] = self.init_guess
-        # opt_res["init_guess_bra"] = self.init_guess_bra
         opt_res["e"] = float(opt_res.fun)
-        self.opt_res = opt_res
         # prepare for future modification
         p = opt_res.x.copy()
-        # opt_res.pop('x')
-        # opt_res['x_bra']=p[:self.n_params_bra]
-        # opt_res['x_ket']=p[self.n_params_bra:]
-
-        self.params_bra = p#[:self.n_params_bra]
-        self.params_ket = p#[self.n_params_bra:]
+        dvar = {self.total_variables[i]:p[i] for i in range(self.n_variables)}
+        pa_ket = [map_variables(pa,dvar) for pa in self.variables_ket]
+        pa_bra = [map_variables(pa,dvar) for pa in self.variables_bra]
+        self.params_bra = pa_bra
+        self.params_ket = pa_ket
+        opt_res['params_bra'] = pa_bra
+        opt_res['params_ket'] = pa_ket
+        self.opt_res = opt_res
         return opt_res.e
     
-    def expval(self, params_ket : Tensor = None, params_bra: Tensor = None, engine: str = None) -> float:
+    def expval(self, angles : Tensor = None, engine: str = None) -> float:
         """
         Evaluate the total Expectation Value.
 
         Parameters
         ----------
-        params: Tensor, optional
-            The circuit parameters. Defaults to None, which uses the optimized parameter
+        angles: Tensor, optional
+            The circuit Variables value. Defaults to None, which uses the optimized parameter
             and :func:`kernel` must be called before.
         engine: str, optional
             The engine to use. Defaults to ``None``, which uses ``self.engine``.
@@ -236,31 +237,25 @@ class EXPVAL(UCC):
         -1.11670614
         """
         self._sanity_check()
-        if len(params_ket) == self.n_params and params_bra is None:
-            params_bra = params_ket[:self.n_params_bra]
-            params_ket = params_ket[self.n_params_bra:]
-        if params_ket is None:
-            params_ket = self.params_ket
-        if params_bra is None:
-            params_bra = self.params_bra
-        params_ket  = self._check_params_argument(params_ket)
-        params_bra = self._check_params_argument(params_bra)
+        angles  = self._check_params_argument(angles)
         hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
-        e = get_expval(hamiltonian=hamiltonian, n_qubits=self.n_qubits, n_elec_s=self.n_elec_s,engine= engine,mode=self.mode,
-                       ex_ops=self.ex_ops_ket , ex_ops_bra=self.ex_ops_bra, 
-                       params=self.params_ket ,params_bra=self.params_bra,
-                       param_ids=self.param_ids_ket ,param_ids_bra=self.param_ids_bra,
+        e = get_expval(angles=angles,hamiltonian=hamiltonian, n_qubits=self.n_qubits, n_elec_s=self.n_elec_s,total_variables=self.total_variables,
+                       engine= engine,mode=self.mode,ex_ops=self.ex_ops_ket , ex_ops_bra=self.ex_ops_bra, 
+                       params=self.variables_ket ,params_bra=self.variables_bra,
                        init_state=self.init_state_ket , init_state_bra=self.init_state_bra)
         return float(e) + self.e_core
     
-    def expval_and_grad(self, params_ket : Tensor = None, params_bra: Tensor = None, engine: str = None) -> Tuple[float, Tensor]:
+    def energy(self, angles : Tensor = None, engine: str = None) -> float:
+        return self.expval(angles=angles,engine=engine)
+    
+    def expval_and_grad(self, angles : Tensor = None, engine: str = None) -> Tuple[float, Tensor]:
         """
         Evaluate the total Expectation Value and parameter gradients.
 
         Parameters
         ----------
-        params: Tensor, optional
-            The circuit parameters. Defaults to None, which uses the optimized parameter
+        angles: Tensor, optional
+            Variables value. Defaults to None, which uses the optimized parameter
             and :func:`kernel` must be called before.
         engine: str, optional
             The engine to use. Defaults to ``None``, which uses ``self.engine``.
@@ -290,23 +285,60 @@ class EXPVAL(UCC):
         array([..., ...])
         """
         self._sanity_check()
-        if len(params_ket) == self.n_params and params_bra is None:
-            params_bra = params_ket[:self.n_params_bra]
-            params_ket = params_ket[self.n_params_bra:]
-        if params_ket is None:
-            params_ket = self.params_ket
-        if params_bra is None:
-            params_bra = self.params_bra
-        params_ket  = self._check_params_argument(params_ket)
-        params_bra = self._check_params_argument(params_bra)
+        angles  = self._check_params_argument(angles)
         hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
-        e, g = get_expval_and_grad(hamiltonian=hamiltonian, n_qubits=self.n_qubits, 
+        e, g = get_expval_and_grad(hamiltonian=hamiltonian, n_qubits=self.n_qubits, angles= angles,total_variables=self.total_variables,
                                    n_elec_s=self.n_elec_s, engine=engine, mode=self.mode, 
                                    ex_ops=self.ex_ops_ket , ex_ops_bra=self.ex_ops_bra,
-                                   params=params_ket ,params_bra=params_bra,
-                                   param_ids=self.param_ids_ket, param_ids_bra=self.param_ids_bra,
+                                   params=self.variables_ket,params_bra=self.variables_bra,
                                    init_state=self.init_state_ket, init_state_bra= self.init_state_bra) 
         return float(e + self.e_core), tc.backend.numpy(g)
+
+    def energy_and_grad(self, angles: Tensor = None, engine: str = None) -> Tuple[float, Tensor]:
+            """
+            Evaluate the total energy and parameter gradients.
+
+            Parameters
+            ----------
+            angles: Tensor, optional
+                Variables value. Defaults to None, which uses the optimized parameter
+                and :func:`kernel` must be called before.
+            engine: str, optional
+                The engine to use. Defaults to ``None``, which uses ``self.engine``.
+
+            Returns
+            -------
+            energy: float
+                Total energy
+            grad: Tensor
+                The parameter gradients
+
+            See Also
+            --------
+            civector: Get the configuration interaction (CI) vector.
+            statevector: Evaluate the circuit state vector.
+            energy: Evaluate the total energy.
+
+            Examples
+            --------
+            >>> from tencirchem import UCCSD
+            >>> from tencirchem.molecule import h2
+            >>> uccsd = UCCSD(h2)
+            >>> e, g = uccsd.energy_and_grad([0, 0])
+            >>> round(e, 8)
+            -1.11670614
+            >>> g  # doctest:+ELLIPSIS
+            array([..., ...])
+            """
+            self._sanity_check()
+            angles = self._check_params_argument(angles)
+            hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
+            e, g = get_energy_and_grad(
+            angles=angles, hamiltonian=hamiltonian,n_qubits=self.n_qubits,n_elec_s= self.n_elec_s, 
+            total_variables=self.total_variables,params=self.variables_ket,ex_ops=self.ex_ops_ket, 
+            mode=self.mode, init_state=self.init_state_ket, engine=engine   
+            )
+            return float(e + self.e_core), tc.backend.numpy(g)
 
     def _check_params_argument(self, params, strict=True):
         if params is None:
@@ -316,29 +348,17 @@ class EXPVAL(UCC):
                 if strict:
                     raise ValueError("Run the `.kernel` method to determine the parameters first")
                 else:
-                    if self.init_guess  is not None and self.init_guess_bra is not None:
-                        params = self.init_guess_bra  + self.init_guess
+                    if self.init_guess  is not None :
+                        params = self.init_guess
                     else:
-                        params = np.zeros(self.n_params)
-        if len(params) != self.n_params_ket  and len(params) != self.n_params_bra and len(params) != self.n_params:
-            raise ValueError(f"Incompatible parameter shape. {self.n_params} , {self.n_params_bra}  or {self.n_params_ket} is desired. Got {len(params)}")
+                        params = np.zeros(self.n_variables)
+        if len(params) != self.n_variables:
+            raise ValueError(f"Incompatible parameter shape. {self.n_variables} is desired. Got {len(params)}")
         return tc.backend.convert_to_tensor(params).astype(tc.rdtypestr)
     
     def _sanity_check(self):
-        if self.ex_ops_ket  is None or self.param_ids_ket is None:
-            raise ValueError("`ex_ops_ket` or `param_ids_ket` not defined")
-        if self.ex_ops_bra is None or self.param_ids_bra is None:
-            raise ValueError("`ex_ops_bra` or `param_ids_bra` not defined")
-        
-        if self.param_ids_bra is not None and (len(self.ex_ops_bra) != len(self.param_ids_bra)):
-            raise ValueError(
-                f"Excitation operator size {len(self.ex_ops_bra)} and parameter size {len(self.param_ids_bra)} do not match"
-            )
-        if self.param_ids  is not None and (len(self.ex_ops_ket) != len(self.param_ids_ket)):
-            raise ValueError(
-                f"Excitation operator size {len(self.ex_ops_ket)} and parameter size {len(self.param_ids_ket)} do not match"
-            )
-    
+        pass
+               
     def civector(self, params: Tensor = None, engine: str = None,ket: bool = True) -> Tensor:
         """
         Evaluate the configuration interaction (CI) vector.
@@ -377,14 +397,12 @@ class EXPVAL(UCC):
             engine = self.engine
         if ket:
             ex_ops  = self.ex_ops_ket
-            param_ids = self.param_ids_ket 
             init_state = self.init_state_ket
         else:
             ex_ops  = self.ex_ops_bra
-            param_ids = self.param_ids_bra
             init_state = self.init_state_bra
         civector = get_civector(
-            params, self.n_qubits, self.n_elec_s, ex_ops, param_ids, self.mode, init_state, engine
+            params, self.n_qubits, self.n_elec_s, ex_ops,[*range(len(ex_ops))], self.mode, init_state, engine
         )
         return civector
 
@@ -444,14 +462,12 @@ class EXPVAL(UCC):
             engine = self.engine
         if ket:
             ex_ops = self.ex_ops_ket
-            param_ids = self.param_ids_ket 
             init_state = self.init_state_ket
         else:
             ex_ops = self.ex_ops_bra
-            param_ids = self.param_ids_bra
             init_state = self.init_state_bra
         statevector = get_statevector(
-            params, self.n_qubits, self.n_elec_s, ex_ops, param_ids, self.mode, init_state, engine
+            params, self.n_qubits, self.n_elec_s, ex_ops, [*range(len(ex_ops))], self.mode, init_state, engine
         )
         return statevector
 
@@ -479,16 +495,14 @@ class EXPVAL(UCC):
         """
         if ket:
             ex_ops = self.ex_ops_ket
-            param_ids = self.param_ids_ket 
             init_state = self.init_state_ket 
         else:
             ex_ops = self.ex_ops_bra
-            param_ids = self.param_ids_bra
             init_state = self.init_state_bra
         if ex_ops is None:
             raise ValueError("Excitation operators not defined")
         params = self._check_params_argument(params, strict=False)
-        return get_circuit(params,self.n_qubits,self.n_elec_s,ex_ops,param_ids,self.mode,init_state,decompose_multicontrol=decompose_multicontrol,trotter=trotter)
+        return get_circuit(params,self.n_qubits,self.n_elec_s,ex_ops,[*range(len(ex_ops))],self.mode,init_state,decompose_multicontrol=decompose_multicontrol,trotter=trotter)
 
     def print_circuit(self,ket:bool=True):
         """
@@ -571,11 +585,6 @@ class EXPVAL(UCC):
             else:
                 params = self.params_ket 
 
-            if self.param_ids_ket is None:
-                # see self.n_params_ket
-                param_ids = range(len(self.ex_ops_ket))
-            else:
-                param_ids = self.param_ids_ket
             ex_ops =self.ex_ops_ket
             init_guess = self.init_guess 
         else:
@@ -588,17 +597,12 @@ class EXPVAL(UCC):
             else:
                 params = self.params_bra
 
-            if self.param_ids is None:
-                # see self.n_params
-                param_ids = range(len(self.ex_ops_bra))
-            else:
-                param_ids = self.param_ids_bra
             ex_ops =self.ex_ops_bra
             init_guess = self.init_guess_bra
             
         data_list = []
 
-        for i, ex_op in zip(param_ids, ex_ops):
+        for i, ex_op in zip([*range(len(ex_ops))], ex_ops):
             bitstring = get_ex_bitstring(self.n_qubits, self.n_elec_s, ex_op, self.mode)
             data_list.append((ex_op, bitstring, params[i], init_guess[i]))
         return pd.DataFrame(data_list, columns=columns)
@@ -750,68 +754,45 @@ class EXPVAL(UCC):
     
     @params_bra.setter
     def params_bra(self, params_bra):
-        # params_bra = [Variable(i) for i in params_bra]
+        params_bra = deepcopy(params_bra)
+        for i,j in enumerate(params_bra):
+            if isinstance(j,Variable):
+                self._variables_bra.append(j)
+                params_bra[i]= j.name
+            elif isinstance(j,Objective):
+                self._variables_bra.append(j)
+                params_bra[i] = str(self.ex_ops_bra[i])
+            else:
+                self._variables_bra.append(Variable(j))
         self._params_bra = params_bra
 
     @params_ket.setter
     def params_ket(self, params_ket):
-        # params_ket = [Variable(i) for i in params_ket]
+        params_ket = deepcopy(params_ket)
+        for i,j in enumerate(params_ket):
+            if isinstance(j,Variable):
+                self._variables_ket.append(j)
+                params_ket[i]= j.name
+            elif isinstance(j,Objective):
+                self._variables_ket.append(j)
+                params_ket[i] = str(self.ex_ops_ket[i])
+            else:
+                self._variables_ket.append(Variable(j))
         self._params_ket = params_ket
+
         if self.params_bra is None:
             self._params_bra = params_ket
+            self._variables_bra = deepcopy(self._variables_ket)
     
     @params.setter
     def params(self, params):
         self.params_bra = params
         self.params_ket = params
 
-    @property
-    def param_ids_bra(self) -> List[int]:
-        """The mapping from excitations operators to parameters."""
-        if self._param_ids_bra is None:
-            if self.ex_ops_bra is None:
-                raise ValueError("Excitation operators BRA not defined")
-            else:
-                return tuple(range(len(self.ex_ops_bra)))
-        return self._param_ids_bra
-    
-    @property
-    def param_ids_ket(self) -> List[int]:
-        """The mapping from excitations operators to parameters."""
-        if self._param_ids_ket is None:
-            if self.ex_ops_ket is None:
-                raise ValueError("Excitation operators KET not defined")
-            else:
-                c = 0 if self.ex_ops_bra is None else len(self.ex_ops_bra)
-                return tuple(range(c,len(self.ex_ops_ket)+c))
-        return self._param_ids_ket
-
-    @property
-    def param_ids(self) -> List[int]:
-        """The mapping from excitations operators to parameters."""
-        return self.param_ids_bra + self.param_ids_ket
-
-    @param_ids_bra.setter
-    def param_ids_bra(self, v):
-        self._param_ids_bra = v
-        if self._param_ids_ket is None:
-            self._param_ids_ket = v
-    
-    @param_ids_ket.setter
-    def param_ids_ket(self, v):
-        self._param_ids_ket = v
-        if self._param_ids_bra is None:
-            self._param_ids_bra = v
-    
-    @param_ids.setter
-    def param_ids(self, v):
-        self._param_ids_bra = v
-        self._param_ids_ket = v
-
     @property 
     def param_to_ex_ops_bra(self):
         d = defaultdict(list)
-        for i, j in enumerate(self.param_ids_bra):
+        for i, j in enumerate(self.params_bra):
             d[j].append(self.ex_ops_bra[i])
         return d
     
@@ -819,121 +800,96 @@ class EXPVAL(UCC):
     def param_to_ex_ops_ket(self):
         d = defaultdict(list)
         c = self.n_params_bra
-        for i, j in enumerate(self.param_ids_ket):
+        for i, j in enumerate(self.param_ket):
             d[j+c].append(self.ex_ops_ket[i])
         return d
     
     @property
     def param_to_ex_ops(self):
         d = self.param_to_ex_ops_bra
-        for i,j in enumerate(self.param_ids_ket):
+        for i,j in enumerate(self.param_ket):
             d[j+self.n_params_bra].append(self.ex_ops_ket[i])
         return d 
-
-    @property
-    def n_params(self) -> int:
-        """The number of parameter in the ansatz/circuit."""
-        # this definition ensures that `param[param_id]` is always valid
-        return self.n_params_bra + self.n_params_ket
-    
-    @property
-    def n_params_bra(self) -> int:
-        """The number of parameter in the ansatz/circuit."""
-        # this definition ensures that `param[param_id]` is always valid
-        if not self.param_ids_bra:
-            return 0
-        return max(self.param_ids_bra) + 1
-    
-    @property
-    def n_params_ket(self) -> int:
-        """The number of parameter in the ansatz/circuit."""
-        # this definition ensures that `param[param_id]` is always valid
-        if not self.param_ids_ket:
-            return 0
-        return max(self.param_ids_ket) + 1
     
     @property
     def n_variables(self) -> int:
-        return len(Objective(self.params).extract_variables())
+        return len(Objective(self.variables_bra+self.variables_ket).extract_variables())
     
     @property
     def n_variables_bra(self) -> int:
-        return len(Objective(self.params_bra).extract_variables())
+        return len(Objective(self.variables_bra).extract_variables())
                    
     @property
     def n_variables_ket(self) -> int:
-        return len(Objective(self.params_ket).extract_variables())
+        return len(Objective(self.variables_ket).extract_variables())
 
     @property
-    def variables(self):
-        pass
+    def variables_ket(self):
+        return self._variables_ket
 
-class _EvalContainer:
-    """
-    Container Class to access scipy and keep the optimization history.
-    This class is used by the SciPy optimizer and should not be used elsewhere.
+    @property
+    def variables_bra(self):
+        return self._variables_bra
+    
+    @property
+    def param_to_var_bra(self):
+        d = {}
+        for i in range(len(self.params_bra)):
+            d[self.params_bra[i]] = self.variables_bra[i]
+        return d
+    
+    @property
+    def param_to_var_ket(self):
+        d = {}
+        for i in range(len(self.params_ket)):
+            d[self.params_ket[i]] = self.variables_ket[i]
+        return d
+    
+    @property
+    def param_to_var(self):
+        d = self.param_to_var_bra
+        d.update(self.param_to_var_ket)
+        return d
 
-    Attributes
-    ---------
-    objective:
-        the objective to evaluate.
-    param_keys:
-        the dictionary mapping parameter keys to positions in a numpy array.
-    samples:
-        the number of samples to evaluate objective with.
-    save_history:
-        whether or not to save, in a history, information about each time __call__ occurs.
-    print_level
-        dictates the verbosity of printing during call.
-    N:
-        the length of param_keys.
-    history:
-        if save_history, a list of energies received from every __call__
-    history_angles:
-        if save_history, a list of angles sent to __call__.
+    @property
+    def var_to_param_bra(self):
+        d = {}
+        for i in range(len(self.params_bra)):
+            d[self.variables_bra[i]] = self.params_bra[i] 
+        return d
+    
+    @property
+    def var_to_param_ket(self):
+        d = {}
+        for i in range(len(self.params_ket)):
+            d[self.variables_ket[i]]  =self.params_ket[i]
+        return d
+    
+    @property
+    def param_to_var(self):
+        d = self.var_to_param_bra
+        d.update(self.var_to_param_ket)
+        return d
 
-    Class copypasted from Tequila, saludos.
-    """
+    @property
+    def total_variables(self):
+        return Objective(self.variables_bra+self.variables_ket).extract_variables()
 
-    def __init__(
-        self, fun, param_keys
-    ):
-        self.fun = fun
-        self.param_keys = param_keys
-        self.params = Objective(param_keys).extract_variables()
-        print(self.params)
-        print(self.param_keys)
-        self.N = len(self.params)
+    @property
+    def init_guess(self):
+        if isinstance(self._init_guess,dict):
+            return [self._init_guess[i] for i in self.total_variables()]
+        elif isinstance(self._init_guess,Number):
+            return [self._init_guess]
+        else: return self._init_guess
+        
+    @init_guess.setter
+    def init_guess(self,init_guess):
+        self._init_guess = init_guess
 
-    def __call__(self, p, *args, **kwargs):
-        """
-        call a wrapped objective.
-        Parameters
-        ----------
-        p: numpy array:
-            Parameters with which to call the Function.
-        args
-        kwargs
-
-        Returns
-        -------
-        numpy.array:
-            value of self.objective with p translated into variables, as a numpy array.
-        """
-        angles = dict((self.params[i], p[i]) for i in range(self.N))
-        variabes = [v(angles) for v in self.param_keys]
-
-        values = self.fun(variabes)
-        result = [values[0]]
-        gradient = {}
-        for k in range(len(self.params)):
-            var = self.param_keys[k]
-            if var not in gradient:
-                gradient[var]=0.0
-            
-            gradient[var] += values[1][k]
-
-        result += list(gradient.values())
-
-
-        return result
+def map_variables(x:list[Variable,Objective],dvariables:dict):
+    if isinstance(x,Variable):
+        x = x.map_variables(dvariables)
+    elif isinstance(x,Objective):
+        x=simulate(x,dvariables)
+    return x

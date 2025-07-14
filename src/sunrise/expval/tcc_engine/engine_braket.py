@@ -10,22 +10,20 @@ import logging
 
 import tensorcircuit as tc
 from tencirchem.utils.backend import jit, value_and_grad
-from tencirchem.utils.misc import unpack_nelec
 from tencirchem.static.hamiltonian import apply_op
-from tencirchem.static.ci_utils import get_ci_strings, civector_to_statevector, statevector_to_civector
-from tencirchem.static.evolve_civector import (
-    get_civector_nocache,
-    apply_excitation_civector,
-    apply_excitation_civector_nocache,
-)
+from tencirchem.static.ci_utils import get_ci_strings
+from tencirchem.static.evolve_civector import get_civector_nocache
+from tencirchem.static.ucc import translate_init_state
 from tencirchem.static.evolve_civector import get_civector as get_civector_
-from tencirchem.static.evolve_statevector import apply_excitation_statevector
 from tencirchem.static.evolve_statevector import get_statevector as get_statevector_
 from tencirchem.static.evolve_tensornetwork import get_statevector_tensornetwork
-from tencirchem.static.evolve_pyscf import get_civector_pyscf, apply_excitation_pyscf
+from tencirchem.static.evolve_pyscf import get_civector_pyscf
 
 from .evolve_pyscf import get_expval_and_grad_pyscf
+from .evolve_pyscf import get_energy_and_grad_pyscf
 from .evolve_civector import get_expval_and_grad_civector,get_expval_and_grad_civector_nocache
+from .evolve_civector import get_energy_and_grad_civector,get_energy_and_grad_civector_nocache
+from tequila import Variable,Objective,simulate
 
 logger = logging.getLogger(__name__)
 
@@ -38,70 +36,56 @@ GETVECTOR_MAP = {
     "pyscf": get_civector_pyscf,
 }
 
-
-def get_ket(params, n_qubits, n_elec_s, ex_ops, param_ids, mode, init_state, ci_strings, engine):
-    if param_ids is None:
-        param_ids = range(len(ex_ops))
-    func = GETVECTOR_MAP[engine]
-    init_state = translate_init_state(init_state, n_qubits, ci_strings)
-    ket = func(
-        params,
-        n_qubits,
-        n_elec_s,
-        ex_ops=tuple(ex_ops),
-        param_ids=tuple(param_ids),
-        mode=mode,
-        init_state=init_state,
-    )
-    return ket
-
-
-def get_civector(params, n_qubits, n_elec_s, ex_ops, param_ids, mode, init_state, engine):
-    ci_strings = get_ci_strings(n_qubits, n_elec_s, mode)
-    ket = get_ket(params, n_qubits, n_elec_s, ex_ops, param_ids, mode, init_state, ci_strings, engine)
-    if engine.startswith("civector") or engine == "pyscf":
-        civector = ket
-    else:
-        civector = ket[ci_strings]
-    return civector
-
-
-def get_statevector(params, n_qubits, n_elec_s, ex_ops, param_ids, mode, init_state, engine):
-    ci_strings = get_ci_strings(n_qubits, n_elec_s, mode)
-    ket = get_ket(params, n_qubits, n_elec_s, ex_ops, param_ids, mode, init_state, ci_strings, engine)
-    if engine.startswith("civector") or engine == "pyscf":
-        statevector = civector_to_statevector(ket, n_qubits, ci_strings)
-    else:
-        statevector = ket
-    return statevector
-
-
-def get_expval(hamiltonian, n_qubits, n_elec_s, engine, mode: str, ex_ops: Tuple, params,params_bra,param_ids: list,  init_state, ex_ops_bra: Tuple = None, param_ids_bra: list= None,  init_state_bra= None ):
-    if param_ids is None:
-        param_ids = range(len(ex_ops))
-    if param_ids_bra is None:
-        if ex_ops_bra is not None:
-            param_ids_bra = range(len(ex_ops_bra))
-        else:
-            param_ids_bra = param_ids
-            ex_ops_bra = ex_ops
+def get_expval(angles, hamiltonian, n_qubits, n_elec_s,total_variables,
+    params,ex_ops: Tuple,engine ,mode: str = "fermion", init_state=None,
+    params_bra=None,ex_ops_bra:Tuple=None,init_state_bra=None):
+    if ex_ops_bra is None:
+        ex_ops_bra = ex_ops
     if init_state_bra is None:
         init_state_bra = init_state
     if params_bra is None:
         params_bra = params
+    assert len(angles)==len(total_variables)
+    dangles = {total_variables[i].name:angles[i] for i in range(len(angles))}
+    pa = []
+    for p in params:
+        pa.append(map_variables(p,dangles))
+    map_params = tc.backend.numpy(tc.backend.convert_to_tensor(pa).astype(tc.rdtypestr))
+    pa = []
+    for p in params_bra:
+        pa.append(map_variables(p,dangles))
+    map_params_bra = tc.backend.numpy(tc.backend.convert_to_tensor(pa).astype(tc.rdtypestr))
     logger.info(f"Entering `get_energy`")
     ci_strings = get_ci_strings(n_qubits, n_elec_s, mode)
     init_state_ket = translate_init_state(init_state, n_qubits, ci_strings)
     init_state_bra = translate_init_state(init_state_bra, n_qubits, ci_strings)
     ket = GETVECTOR_MAP[engine](
-        params, n_qubits, n_elec_s, tuple(ex_ops), tuple(param_ids), mode=mode, init_state=init_state_ket
+        map_params, n_qubits, n_elec_s, tuple(ex_ops),  tuple([*range(len(ex_ops))]), mode=mode, init_state=init_state_ket
     )
     bra = GETVECTOR_MAP[engine](
-        params_bra, n_qubits, n_elec_s, tuple(ex_ops_bra), tuple(param_ids_bra), mode=mode, init_state=init_state_bra
+        map_params_bra, n_qubits, n_elec_s, tuple(ex_ops_bra),  tuple([*range(len(ex_ops_bra))]), mode=mode, init_state=init_state_bra
     )
     hket = apply_op(hamiltonian, ket)
     return bra @ hket
 
+#Here only to get_energy_and_grad implemetations
+def get_energy(angles, hamiltonian, n_qubits, n_elec_s, total_variables,params,ex_ops, mode, init_state, engine):
+
+    assert len(angles)==len(total_variables)
+    dangles = {total_variables[i].name:angles[i] for i in range(len(angles))}
+    pa = []
+    for p in params:
+        pa.append(map_variables(p,dangles))
+    map_params = tc.backend.numpy(tc.backend.convert_to_tensor(pa).astype(tc.rdtypestr))
+
+    logger.info(f"Entering `get_energy`")
+    ci_strings = get_ci_strings(n_qubits, n_elec_s, mode)
+    init_state = translate_init_state(init_state, n_qubits, ci_strings)
+    ket = GETVECTOR_MAP[engine](
+        map_params, n_qubits, n_elec_s, tuple(ex_ops), tuple([*range(len(ex_ops))]), mode=mode, init_state=init_state
+    )
+    hket = apply_op(hamiltonian, ket)
+    return ket @ hket
 
 get_expval_statevector = partial(get_expval, engine="statevector")
 try:
@@ -129,8 +113,33 @@ EXPVAL_AND_GRAD_MAP = {
     "pyscf": get_expval_and_grad_pyscf,
 }
 
+get_energy_statevector = partial(get_energy, engine="statevector")
+try:
+    get_energy_and_grad_statevector = jit(value_and_grad(get_energy_statevector), static_argnums=[2, 3, 4, 5, 6])
+except NotImplementedError:
 
-def get_expval_and_grad(hamiltonian, n_qubits, n_elec_s, engine, mode: str, ex_ops: Tuple, params,params_bra,param_ids: list,  init_state, ex_ops_bra: Tuple = None, param_ids_bra: list= None,  init_state_bra= None ):
+    def get_energy_and_grad_statevector(*args, **kwargs):
+        raise NotImplementedError("Non JAX-backend for statevector engine")
+
+
+get_energy_tensornetwork = partial(get_energy, engine="tensornetwork")
+try:
+    get_energy_and_grad_tensornetwork = jit(value_and_grad(get_energy_tensornetwork), static_argnums=[2, 3, 4, 5, 6])
+except NotImplementedError:
+
+    def get_energy_and_grad_tensornetwork(*args, **kwargs):
+        raise NotImplementedError("Non JAX-backend for tensornetwork engine")
+
+
+ENERGY_AND_GRAD_MAP = {
+    "tensornetwork": get_energy_and_grad_tensornetwork,
+    "statevector": get_energy_and_grad_statevector,
+    "civector": get_energy_and_grad_civector,
+    "civector-large": get_energy_and_grad_civector_nocache,
+    "pyscf": get_energy_and_grad_pyscf,
+}
+
+def get_expval_and_grad(angles:list,hamiltonian, n_qubits, n_elec_s, engine, mode: str,total_variables, ex_ops: Tuple, params,params_bra,  init_state, ex_ops_bra: Tuple = None,  init_state_bra= None ):
     if engine not in EXPVAL_AND_GRAD_MAP:
         raise ValueError(f"Engine '{engine}' not supported")
 
@@ -138,55 +147,21 @@ def get_expval_and_grad(hamiltonian, n_qubits, n_elec_s, engine, mode: str, ex_o
     ci_strings = get_ci_strings(n_qubits, n_elec_s, mode)
     init_state = translate_init_state(init_state, n_qubits, ci_strings)
     init_state_bra = translate_init_state(init_state_bra, n_qubits, ci_strings)
-    return func(params, hamiltonian, n_qubits, n_elec_s, tuple(ex_ops), tuple(param_ids), mode, init_state,
-    params_bra,tuple(ex_ops_bra),tuple(param_ids_bra),init_state_bra)
+    return func(angles, hamiltonian, n_qubits, n_elec_s, total_variables, params,tuple(ex_ops), mode, init_state,
+    params_bra,tuple(ex_ops_bra),init_state_bra)
 
-
-APPLY_EXCITATION_MAP = {
-    # share the same function with statevector engine
-    "tensornetwork": apply_excitation_statevector,
-    "statevector": apply_excitation_statevector,
-    "civector": apply_excitation_civector,
-    "civector-large": apply_excitation_civector_nocache,
-    "pyscf": apply_excitation_pyscf,
-}
-
-
-def apply_excitation(state, n_qubits, n_elec_s, ex_op, mode, engine):
-    if engine not in APPLY_EXCITATION_MAP:
+def get_energy_and_grad(angles, hamiltonian, n_qubits, n_elec_s, total_variables,params,ex_ops, mode, init_state, engine):
+    if engine not in ENERGY_AND_GRAD_MAP:
         raise ValueError(f"Engine '{engine}' not supported")
 
-    state = tc.backend.convert_to_tensor(state)
+    func = ENERGY_AND_GRAD_MAP[engine]
+    ci_strings = get_ci_strings(n_qubits, n_elec_s, mode)
+    init_state = translate_init_state(init_state, n_qubits, ci_strings)
+    return func(angles, hamiltonian, n_qubits, n_elec_s, total_variables,params, tuple(ex_ops), mode, init_state)
 
-    is_statevector_input = len(state) == (1 << n_qubits)
-    is_statevector_engine = engine in ["tensornetwork", "statevector"]
-
-    n_elec_s = unpack_nelec(n_elec_s)
-
-    if is_statevector_input and not is_statevector_engine:
-        ci_strings = get_ci_strings(n_qubits, n_elec_s, mode)
-        state = statevector_to_civector(state, ci_strings)
-    if not is_statevector_input and is_statevector_engine:
-        ci_strings = get_ci_strings(n_qubits, n_elec_s, mode)
-        state = civector_to_statevector(state, n_qubits, ci_strings)
-    func = APPLY_EXCITATION_MAP[engine]
-    res_state = func(state, n_qubits, n_elec_s, ex_op, mode)
-    if is_statevector_input and not is_statevector_engine:
-        return civector_to_statevector(res_state, n_qubits, ci_strings)
-    if not is_statevector_input and is_statevector_engine:
-        return statevector_to_civector(res_state, ci_strings)
-    return res_state
-
-
-def translate_init_state(init_state, n_qubits, ci_strings):
-    if init_state is None:
-        return None
-    # translate to civector first for all engines to be JAX-compatible
-    if isinstance(init_state, tc.Circuit):
-        # note no cupy backend for tc
-        init_state = statevector_to_civector(tc.backend.convert_to_tensor(init_state.state().real), ci_strings)
-    else:
-        is_statevector_input = len(init_state) == (1 << n_qubits)
-        if is_statevector_input:
-            init_state = statevector_to_civector(init_state, ci_strings)
-    return tc.backend.convert_to_tensor(init_state)
+def map_variables(x:list[Variable,Objective],dvariables:dict):
+    if isinstance(x,Variable):
+        x = x.map_variables(dvariables)
+    elif isinstance(x,Objective):
+        x=simulate(x,dvariables)
+    return x

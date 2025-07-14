@@ -1,46 +1,81 @@
 from tencirchem.static.evolve_pyscf import *
 from tencirchem.static.evolve_pyscf import _get_gradients_pyscf
+from tequila import simulate,Objective,Variable,grad,QTensor
 
 
 def get_expval_and_grad_pyscf(
-    params, hamiltonian, n_qubits, n_elec_s, ex_ops: Tuple, param_ids: Tuple, mode: str = "fermion", init_state=None,
-    params_bra=None,ex_ops_bra:Tuple=None,param_ids_bra:Tuple=None,init_state_bra=None):
-    params = tc.backend.numpy(params)
-    ket = get_civector_pyscf(params, n_qubits, n_elec_s, ex_ops, param_ids, mode, init_state)
+    angles, hamiltonian, n_qubits, n_elec_s,total_variables,
+    params,ex_ops: Tuple, mode: str = "fermion", init_state=None,
+    params_bra=None,ex_ops_bra:Tuple=None,init_state_bra=None):
+
+
     if ex_ops_bra is None: ex_ops_bra = ex_ops
     if params_bra is None: params_bra = params
-    if param_ids_bra is None: param_ids_bra = param_ids
     if init_state_bra is None: init_state_bra = init_state
-    params_bra = tc.backend.numpy(params_bra)
-    bra = get_civector_pyscf(params_bra, n_qubits, n_elec_s, ex_ops_bra, param_ids_bra, mode, init_state_bra) 
+
+    #We receive list [x0,x1,...] refering to the total variables
+    assert len(angles)==len(total_variables)
+    #Then we create {v0:x0,v1:x1,...}
+    dangles = {total_variables[i].name:angles[i] for i in range(len(angles))}
+    #To build the CIVector we need the already maped params
+    pa = []
+    for p in params:
+        pa.append(map_variables(p,dangles))
+    pa_bra = []
+    for p in params:
+        pa_bra.append(map_variables(p,dangles))
+    map_params = tc.backend.numpy(tc.backend.convert_to_tensor(pa).astype(tc.rdtypestr))
+    map_params_bra = tc.backend.numpy(tc.backend.convert_to_tensor(pa_bra).astype(tc.rdtypestr))
+
+    ket = get_civector_pyscf(map_params, n_qubits, n_elec_s, ex_ops, [*range(len(ex_ops))], mode, init_state)
+    bra = get_civector_pyscf(map_params_bra, n_qubits, n_elec_s, ex_ops_bra, [*range(len(ex_ops_bra))], mode, init_state_bra) 
     hbra = tc.backend.numpy(apply_op(hamiltonian, bra))
     hket = tc.backend.numpy(apply_op(hamiltonian, ket))
     energy = hbra @ ket
 
-    gradients_beforesum = _get_gradients_pyscf(bra=hbra, ket=ket, params=params, n_qubits=n_qubits, n_elec_s=n_elec_s, ex_ops=ex_ops, param_ids=param_ids, mode=mode)
-    gradients_beforesum_bra = _get_gradients_pyscf(ket=bra, bra=hket, params=params_bra, n_qubits=n_qubits, n_elec_s=n_qubits, ex_ops=ex_ops_bra, param_ids=param_ids_bra, mode=mode)
+    gradients_beforesum = _get_gradients_pyscf(bra=hbra, ket=ket, params=map_params, n_qubits=n_qubits, n_elec_s=n_elec_s, ex_ops=ex_ops, param_ids=[*range(len(ex_ops))], mode=mode)
+    gradients_beforesum_bra = _get_gradients_pyscf(ket=bra, bra=hket, params=map_params_bra, n_qubits=n_qubits, n_elec_s=n_qubits, ex_ops=ex_ops_bra, param_ids=[*range(len(ex_ops_bra))], mode=mode)
 
-    gradients = np.zeros(params.shape)
-    gradients_bra = np.zeros(params_bra.shape)
-    for grad, param_id in zip(gradients_beforesum, param_ids):
-        gradients[param_id] += grad
-    for grad, param_id in zip(gradients_beforesum_bra, param_ids_bra):
-        gradients_bra[param_id] += grad
-    return energy, gradients + gradients_bra
+    ang_grad = np.zeros((len(params),len(total_variables)))
+    ang_grad_bra = np.zeros((len(params_bra),len(total_variables)))
+    #TODO: Improve this using tequila Objective, and copy paste in the other functions
+    for i,pa in enumerate(params):
+        for j,an in enumerate(total_variables):
+            ang_grad[i,j]=simulate(grad(1*pa,an),variables=dangles) 
+    for i,pa in enumerate(params_bra):
+        for j,an in enumerate(total_variables):
+            ang_grad_bra[i,j]=simulate(grad(1*pa,an),variables=dangles)
+    gradients = np.add(gradients_beforesum.dot(ang_grad),gradients_beforesum_bra.dot(ang_grad_bra))
+    return energy, gradients
 
 
 def get_energy_and_grad_pyscf(
-    params, hamiltonian, n_qubits, n_elec_s, ex_ops: Tuple, param_ids: Tuple, mode: str = "fermion", init_state=None
-):
-    params = tc.backend.numpy(params)
-    ket = get_civector_pyscf(params, n_qubits, n_elec_s, ex_ops, param_ids, mode, init_state)
+    angles, hamiltonian, n_qubits, n_elec_s, total_variables,
+    params, ex_ops: Tuple,  mode: str = "fermion", init_state=None):
+
+    assert len(angles)==len(total_variables)
+    dangles = {total_variables[i].name:angles[i] for i in range(len(angles))}
+    pa = []
+    for p in params:
+        pa.append(map_variables(p,dangles))
+    map_params = tc.backend.numpy(tc.backend.convert_to_tensor(pa).astype(tc.rdtypestr))
+    ket = get_civector_pyscf(map_params, n_qubits, n_elec_s, ex_ops, [*range(len(ex_ops))], mode, init_state)
     bra = tc.backend.numpy(apply_op(hamiltonian, ket))
     energy = bra @ ket
 
-    gradients_beforesum = _get_gradients_pyscf(bra, ket, params, n_qubits, n_elec_s, ex_ops, param_ids, mode)
-
-    gradients = np.zeros(params.shape)
-    for grad, param_id in zip(gradients_beforesum, param_ids):
-        gradients[param_id] += grad
+    gradients_beforesum = _get_gradients_pyscf(bra, ket, map_params, n_qubits, n_elec_s, ex_ops, [*range(len(ex_ops))], mode)
+    ang_grad = np.zeros((len(params),len(total_variables)))
+    for i,pa in enumerate(params):
+        for j,an in enumerate(total_variables):
+            ang_grad[i,j]=simulate(grad(1*pa,an),variables=dangles)
+    gradients = gradients_beforesum.dot(ang_grad)
 
     return energy, 2 * gradients
+
+
+def map_variables(x:list[Variable,Objective],dvariables:dict):
+    if isinstance(x,Variable):
+        x = x.map_variables(dvariables)
+    elif isinstance(x,Objective):
+        x=simulate(x,dvariables)
+    return x
