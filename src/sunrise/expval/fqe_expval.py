@@ -19,7 +19,7 @@ class FQEBraKet():
         n_qubits = one_body_integrals.shape[0] * 2
 
         self.ket = fqe.Wavefunction(param=[[n_qubits // 2, 0, n_qubits // 2]]) #probably only works for H
-        self.ket_generator = create_fermioinc_generators(ket_instructions)
+        self.ket_generator = create_fermionic_generators(ket_instructions)
 
         bin_dict = generate_of_binary_dict(n_qubits//2, n_qubits//4)
 
@@ -38,7 +38,7 @@ class FQEBraKet():
             self.bra_generator = None
         else:
             self.bra = fqe.Wavefunction(param=[[n_qubits // 2, 0, n_qubits // 2]])
-            self.bra_generator = create_fermioinc_generators(bra_instructions)
+            self.bra_generator = create_fermionic_generators(bra_instructions)
             if init_bra is None:
                 self.bra.set_wfn(strategy='hartree-fock')
             else:
@@ -51,17 +51,16 @@ class FQEBraKet():
     def __call__(self,variables, *args, **kwargs):
 
         if len(variables.values()) != len(self.ket_generator.values()):
-            raise ValueError("Number of generators and number of vairbles don't fit")
+            raise ValueError("Number of generators and number of variables don't fit")
         zip_ket = zip(variables.values(), self.ket_generator.values())
 
         for argument in zip_ket:
-            print(argument)
-            self.ket = self.ket.time_evolve( -0.5 * argument[0], argument[1])
+            self.ket = self.ket.time_evolve( 0.5 * argument[0], argument[1])
 
         if self.bra is not None:
             zip_bra = zip(variables.values(), self.bra_generator.values())
             for argument in zip_bra:
-                self.bra = self.bra.time_evolve( -0.5 * argument[0], argument[1])
+                self.bra = self.bra.time_evolve( 0.5 * argument[0], argument[1])
 
         result = fqe.expectationValue(wfn=self.ket, ops=self.h_fqe, brawfn=self.bra)
 
@@ -174,7 +173,7 @@ def make_excitation_generator_op(indices: typing.Iterable[typing.Tuple[int, int]
 
     return op
 
-def create_fermioinc_generators(instructions):
+def create_fermionic_generators(instructions):
 
     # instruction format [[(0,2,1,3),(2,4,3,5)],[(0,2),(1,3)]]
     #todo check for instruction format: even, repeating indeces
