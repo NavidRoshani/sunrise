@@ -110,7 +110,7 @@ class EXPVAL(UCC):
         self._variables_bra = []
         self._variables_ket = []
         delattr(self,'_params')
-        delattr(self,'init_guess')
+        # delattr(self,'init_guess')
         delattr(self,'_param_ids')
         delattr(self,'_init_state')
 
@@ -753,7 +753,7 @@ class EXPVAL(UCC):
         return self.params_bra + self.params_ket
     
     @params_bra.setter
-    def params_bra(self, params_bra):
+    def params_bra(self, params_bra=[]):
         params_bra = deepcopy(params_bra)
         for i,j in enumerate(params_bra):
             if isinstance(j,Variable):
@@ -767,7 +767,7 @@ class EXPVAL(UCC):
         self._params_bra = params_bra
 
     @params_ket.setter
-    def params_ket(self, params_ket):
+    def params_ket(self, params_ket=[]):
         params_ket = deepcopy(params_ket)
         for i,j in enumerate(params_ket):
             if isinstance(j,Variable):
