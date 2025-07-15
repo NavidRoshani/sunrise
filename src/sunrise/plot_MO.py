@@ -2,6 +2,7 @@ from pyscf import gto, scf
 from pyscf.tools import cubegen
 import tequila as tq
 from tequila import TequilaException
+from sunrise.miscelaneus.bar import giussepe_bar
 
 def plot_MO(molecule:tq.Molecule=None,filename:str=None,orbital:list=None,print_orbital:bool=True,density:bool=False,mep:bool=False):
     """
@@ -28,6 +29,7 @@ def plot_MO(molecule:tq.Molecule=None,filename:str=None,orbital:list=None,print_
         mf.mo_coeff=molecule.integral_manager.orbital_coefficients
     if print_orbital:
         for i in orbital:
+            giussepe_bar(i,len(orbital))
             cubegen.orbital(pmol,  str(i)+"_"+filename+"_MO.cube", molecule.integral_manager.orbital_coefficients[:, i])
     if density:
         cubegen.density(pmol, filename + '_density.cube', mf.make_rdm1())

@@ -8,24 +8,13 @@ from tensorcircuit import Circuit
 from numbers import Number
 from numpy import array,ceil
 from pyscf.gto import Mole
+from .pyscf_molecule import from_tequila
 #assumed to be installed pyscf since dependency for sunrise and tcc
-#TODO: Check somewhere custom TCC installed
-
-# no tequila circuit,
-# safety check bra ket are the same,
-# no need of compile, just evaluate,
-# parameter map has indices as references for the actual variables (use tq.Variables),
-# compute generators in init,
-# first use 2-point opt and later add gradient,
-# method that inputs expval (ket, op and variables you want to differentiate) and return gradient,
-# Later reuse tq.Objective for gradients by changing the primitve class for expectation value,
-# Hamiltonian: user provides c,h,g and in init create the OpenFermion hamiltonian
 
 class TCCBraket:
     def __init__(self,bra:list=None,ket:list=None,init_state_bra:list[QCircuit,QubitWaveFunction,Circuit,str]=None,
-                 init_state_ket:list[QCircuit,QubitWaveFunction,Circuit,str]=None,tcc_kwargs:dict=None,
-                 variables_bra:any=None,variables_ket:any=None,variables_ids_bra:list=None,variables_ids_ket:list=None,
-                 *args,**kwargs):
+                 init_state_ket:list[QCircuit,QubitWaveFunction,Circuit,str]=None,tcc_kwargs:dict={},
+                 variables_bra:any=None,variables_ket:any=None,*args,**kwargs):
         engine = None
         if 'engine' in tcc_kwargs:
             engine = tcc_kwargs['engine']
@@ -36,7 +25,6 @@ class TCCBraket:
         if 'dtype' in tcc_kwargs:
             tcc.set_dtype(tcc_kwargs['dtype'])
             tcc_kwargs.pop('dtype')
-        #TODO: add here more TCC personalizing options
         if 'circuit' in kwargs:
             circuit = kwargs['circuit']
             kwargs.pop('circuit')
@@ -126,7 +114,7 @@ class TCCBraket:
                 n_e_ket = kwargs['n_electrons']
                 kwargs.pop('n_electrons')
             elif 'molecule' in kwargs:
-                if isinstance(kwargs['molecule'],(qc_base.QuantumChemistryBase,QuantumChemistryPySCF)):     
+                if isinstance(kwargs['molecule'],qc_base.QuantumChemistryBase):     
                     n_e_ket = kwargs['molecule'].n_electrons
                 else:
                     n_e_ket = kwargs['molecule'].nelectron
@@ -142,18 +130,19 @@ class TCCBraket:
         if 'molecule' in kwargs:
             molecule = kwargs['molecule']
             kwargs.pop('molecule')
-            if isinstance(molecule,(qc_base.QuantumChemistryBase,QuantumChemistryPySCF)):     
-                molecule = QuantumChemistryPySCF.from_tequila(molecule).pyscf_molecule
+            if isinstance(molecule,qc_base.QuantumChemistryBase):
+                # molecule = QuantumChemistryPySCF.from_tequila(molecule).pyscf_molecule
+                molecule = from_tequila(molecule)
             elif isinstance(molecule,Mole):
                 molecule = Mole
-            self.BK = EXPVAL(mol=molecule,run_hf= False, run_mp2= False, run_ccsd= False, run_fci= False,**tcc_kwargs)
+            self.BK = EXPVAL(mol=molecule,run_hf= True, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**tcc_kwargs)
         elif 'integral_manager' in kwargs and 'parameters' in kwargs:
             integral = kwargs['integral_manager']
             params = kwargs['parameters']
             kwargs.pop('integral_manager')
             kwargs.pop('parameters')
             molecule = Molecule(parameters=params,integral_manager=integral,backend='pyscf')
-            self.BK = EXPVAL(mol=molecule.pyscf_molecule,run_hf= False, run_mp2= False, run_ccsd= False, run_fci= False,**tcc_kwargs)
+            self.BK = EXPVAL(mol=molecule.pyscf_molecule,run_hf= False, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**tcc_kwargs)
         else:
             int1e = None
             int2e = None
@@ -217,29 +206,38 @@ class TCCBraket:
                 for i in init_state_ket:
                     init[i[0]] = i[1]
                 self.init_state_ket = init
-
-        self.variables_bra = [Variable(i) for i in variables_bra]
-        self.variables_ket = [Variable(i) for i in variables_ket]
-
-        self.bra = bra
-        self.ket = ket
+        if variables_ket is not None:
+            self.variables_ket = variables_ket
+        if variables_bra is not None:
+            self.variables_bra = variables_bra
+        if ket is not None:
+            self.ket = ket
+        if bra is not None:
+            self.bra = bra
         
-        self.variables_ids_bra = variables_ids_bra
-        self.variables_ids_ket = variables_ids_ket
-
-        if 'init_guess_bra' in kwargs:
-            self.init_guess_bra = kwargs['init_guess_bra']
-            kwargs.pop('init_guess_bra')
         if 'init_guess_ket' in kwargs:
             self.init_guess_ket = kwargs['init_guess_ket']
             kwargs.pop('init_guess_ket')
+        if 'init_guess_bra' in kwargs:
+            self.init_guess_bra = kwargs['init_guess_bra']
+            kwargs.pop('init_guess_bra')
         
         if 'engine' in kwargs:
             engine = kwargs['engine']
             kwargs.pop('engine')
-        self.BK.engine = engine
+        if engine is not None:
+            self.BK.engine = engine
+        self.opt_res = None
         
-
+    def minimize(self,**kwargs):
+        #TODO: redo
+        if init_guess_bra is not None:
+            self.init_guess_bra = init_guess_bra
+        if init_guess_ket is not None:
+            self.init_guess_ket = init_guess_ket
+        res = self.BK.kernel()
+        return res.e
+        
     @property
     def bra(self):
         """
@@ -253,10 +251,8 @@ class TCCBraket:
         Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (udud order, being 0 the lowest energy MO)
         '''
         bra,params_bra,params_ids_bra = from_indices(bra,len(self.BK.aslst))
-        if self.variables_bra is None: #TODO: Should we overwrite the default variables and indices if changing exct
+        if self.variables_bra is None:
             self.variables_bra = params_bra
-        if self.variables_ids_bra is None:
-            self.variables_ids_bra = params_ids_bra #TODO: Remove this when using tequila objectives
         self.BK.ex_ops_bra = bra
     
     @property
@@ -272,10 +268,8 @@ class TCCBraket:
         Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (udud order, being 0 the lowest energy MO)
         '''
         ket,params_ket,params_ids_ket = from_indices(ket,len(self.BK.aslst))
-        if self.variables_ket is None: #TODO: Should we overwrite the default variables and indices if changing exct
+        if self.variables_ket is None: 
             self.variables_ket = params_ket
-        if self.variables_ids_ket is None:
-            self.variables_ids_ket = params_ids_ket #TODO: Remove this when using tequila objectives
         self.BK.ex_ops_ket = ket
     
     @property
@@ -331,22 +325,6 @@ class TCCBraket:
     @init_state_ket.setter
     def init_state_ket(self, init_state_ket):
         self.BK.init_state_ket  = init_state_ket
-    
-    @property
-    def variables_ids_bra(self) -> list[int]: #TODO: remove when tequila variables
-        return self.BK.param_ids_bra
-    
-    @variables_ids_bra.setter
-    def variables_ids_bra(self, v): #TODO: remove when tequila variables
-        self.BK.param_ids_bra = v
-
-    @property
-    def variables_ids_ket(self) -> list[int]: #TODO: remove when tequila variables
-        return self.BK.param_ids_ket
-    
-    @variables_ids_ket.setter
-    def variables_ids_ket(self, v): #TODO: remove when tequila variables
-        self.BK.param_ids_ket = v
 
     @property
     def init_guess_bra(self):
