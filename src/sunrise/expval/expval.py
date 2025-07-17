@@ -28,7 +28,7 @@ def show_available_modules():
 def show_supported_modules():
     print(SUPPORTED_FERMIONIC_BACKENDS)
 
-def Braket(molecule=None,U:QCircuit=None,indices:[list,tuple]=None,reference:[str,list,QCircuit]=None,backend:str='tequila',optimizer=None,operator=None,*args,**kwargs)->TequilaBraket:
+def Braket(molecule=None,indices:list[list,tuple]=None,reference:list[str,list,QCircuit]=None,backend:str='tequila',optimizer=None,operator=None,*args,**kwargs)->TequilaBraket:
     if 'mol' in kwargs:
         if molecule is not None:
             raise TequilaException("Two Molecules Provided?")
@@ -46,4 +46,4 @@ def Braket(molecule=None,U:QCircuit=None,indices:[list,tuple]=None,reference:[st
             else:
                 indices = temp
     #any kwargs and circuit form should be managed inside each class
-    return INSTALLED_FERMIONIC_BACKENDS[backend.lower()](molecule=molecule,U=U,reference=reference,indices=indices,optimizer=optimizer,operator=operator,*args,**kwargs)
+    return INSTALLED_FERMIONIC_BACKENDS[backend.lower()](molecule=molecule,reference=reference,indices=indices,optimizer=optimizer,operator=operator,*args,**kwargs) #TODO: DO something not anoying

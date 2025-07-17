@@ -107,8 +107,8 @@ class EXPVAL(UCC):
         # for manually set
         self._params_bra = None
         self._params_ket = None
-        self._variables_bra = []
-        self._variables_ket = []
+        self._variables_bra = None
+        self._variables_ket = None
         delattr(self,'_params')
         # delattr(self,'init_guess')
         delattr(self,'_param_ids')
@@ -170,6 +170,7 @@ class EXPVAL(UCC):
         e: float
             The optimized energy
         """
+        
         energy_and_grad, stating_time = self.get_opt_function(with_time=True)
         
         if self.init_guess is None:
@@ -196,12 +197,10 @@ class EXPVAL(UCC):
         # prepare for future modification
         p = opt_res.x.copy()
         dvar = {self.total_variables[i]:p[i] for i in range(self.n_variables)}
-        pa_ket = [map_variables(pa,dvar) for pa in self.variables_ket]
-        pa_bra = [map_variables(pa,dvar) for pa in self.variables_bra]
-        self.params_bra = pa_bra
-        self.params_ket = pa_ket
-        opt_res['params_bra'] = pa_bra
-        opt_res['params_ket'] = pa_ket
+        opt_res['params_ket'] = [map_variables(pa,dvar) for pa in self.variables_ket]
+        
+        if self.variables_bra is not None:
+            opt_res['params_bra'] = [map_variables(pa,dvar) for pa in self.variables_bra]
         self.opt_res = opt_res
         return opt_res.e
     
@@ -720,9 +719,9 @@ class EXPVAL(UCC):
     @property
     def ex_ops(self) -> Tensor:
         """
-        Excitation operators applied to the bra + ket.
+        Excitation operators applied to the bra , ket.
         """
-        return self.ex_ops_bra + self.ex_ops_ket 
+        return self.ex_ops_bra , self.ex_ops_ket 
 
     @ex_ops.setter
     def ex_ops(self, ex_ops):
@@ -732,57 +731,60 @@ class EXPVAL(UCC):
     @property
     def params_bra(self) -> Tensor:
         """The circuit parameters."""
-        if self._params_bra is not None:
+        if self.opt_res is not None and 'params_bra' in self.opt_res:
+            return self.opt_res.params_bra
+        elif self._params_bra is not None:
             return self._params_bra
-        elif self.opt_res is not None:
-            return self.opt_res.x
         return None
     
     @property
     def params_ket(self) -> Tensor:
         """The circuit parameters."""
-        if self._params_ket is not None:
+        if self.opt_res is not None and 'params_ket' in self.opt_res:
+            return self.opt_res.params_ket
+        elif self._params_ket is not None:
             return self._params_ket
-        elif self.opt_res is not None:
-            return self.opt_res.x
         return None
     
     @property
     def params(self) -> Tensor:
         """The circuit parameters."""
-        return self.params_bra + self.params_ket
+        return self.params_bra , self.params_ket
+
     
     @params_bra.setter
-    def params_bra(self, params_bra=[]):
-        params_bra = deepcopy(params_bra)
-        for i,j in enumerate(params_bra):
-            if isinstance(j,Variable):
-                self._variables_bra.append(j)
-                params_bra[i]= j.name
-            elif isinstance(j,Objective):
-                self._variables_bra.append(j)
-                params_bra[i] = str(self.ex_ops_bra[i])
-            else:
-                self._variables_bra.append(Variable(j))
-        self._params_bra = params_bra
+    def params_bra(self, params_bra=None):
+        if params_bra is not None:
+            params_bra = deepcopy(params_bra)
+            var_bra = []
+            for i,j in enumerate(params_bra):
+                if isinstance(j,Variable):
+                    var_bra.append(j)
+                    params_bra[i]= j.name
+                elif isinstance(j,Objective):
+                    var_bra.append(j)
+                    params_bra[i] = str(self.ex_ops_bra[i])
+                else:
+                    var_bra.append(Variable(j))
+            self._params_bra = params_bra
+            self._variables_bra = var_bra
 
     @params_ket.setter
-    def params_ket(self, params_ket=[]):
-        params_ket = deepcopy(params_ket)
-        for i,j in enumerate(params_ket):
-            if isinstance(j,Variable):
-                self._variables_ket.append(j)
-                params_ket[i]= j.name
-            elif isinstance(j,Objective):
-                self._variables_ket.append(j)
-                params_ket[i] = str(self.ex_ops_ket[i])
-            else:
-                self._variables_ket.append(Variable(j))
-        self._params_ket = params_ket
-
-        if self.params_bra is None:
-            self._params_bra = params_ket
-            self._variables_bra = deepcopy(self._variables_ket)
+    def params_ket(self, params_ket=None):
+        if params_ket is not None:
+            params_ket = deepcopy(params_ket)
+            var_ket = []
+            for i,j in enumerate(params_ket):
+                if isinstance(j,Variable):
+                    var_ket.append(j)
+                    params_ket[i]= j.name
+                elif isinstance(j,Objective):
+                    var_ket.append(j)
+                    params_ket[i] = f'f({j.extract_variables()})'
+                else:
+                    var_ket.append(Variable(f"{str(j)}"))
+            self._params_ket = params_ket
+            self._variables_ket = var_ket
     
     @params.setter
     def params(self, params):
@@ -813,7 +815,7 @@ class EXPVAL(UCC):
     
     @property
     def n_variables(self) -> int:
-        return len(Objective(self.variables_bra+self.variables_ket).extract_variables())
+        return len(self.total_variables) if self.total_variables is not None else 0
     
     @property
     def n_variables_bra(self) -> int:
@@ -830,6 +832,10 @@ class EXPVAL(UCC):
     @property
     def variables_bra(self):
         return self._variables_bra
+    
+    @property
+    def variables(self):
+        return self._variables_bra,self._variables_ket
     
     @property
     def param_to_var_bra(self):
@@ -853,27 +859,38 @@ class EXPVAL(UCC):
 
     @property
     def var_to_param_bra(self):
-        d = {}
-        for i in range(len(self.params_bra)):
-            d[self.variables_bra[i]] = self.params_bra[i] 
-        return d
+        if self.params_bra is not None:
+            d = {}
+            for i in range(len(self.params_bra)):
+                d[self.variables_bra[i]] = self.params_bra[i] 
+            return d
+        else: return None
     
     @property
     def var_to_param_ket(self):
-        d = {}
-        for i in range(len(self.params_ket)):
-            d[self.variables_ket[i]]  =self.params_ket[i]
-        return d
+        if self.params_ket is not None:
+            d = {}
+            for i in range(len(self.params_ket)):
+                d[self.variables_ket[i]]  =self.params_ket[i]
+            return d
     
     @property
-    def param_to_var(self):
-        d = self.var_to_param_bra
-        d.update(self.var_to_param_ket)
+    def var_to_param(self):
+        d = deepcopy(self.var_to_param_bra)
+        if d is not None:
+            d.update(deepcopy(self.var_to_param_ket))
+        else: d = self.var_to_param_ket           
         return d
 
     @property
     def total_variables(self):
-        return Objective(self.variables_bra+self.variables_ket).extract_variables()
+        if self.variables_bra is not None and  self.variables_bra is not None:
+            return Objective(self.variables_bra+self.variables_ket).extract_variables()
+        elif self.variables_bra is None:
+            return Objective(self.variables_ket).extract_variables()
+        elif self.variables_ket is None:
+            return Objective(self.variables_bra).extract_variables()
+        else: return None
 
     @property
     def init_guess(self):

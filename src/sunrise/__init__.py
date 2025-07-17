@@ -7,4 +7,5 @@ from .molecularcircuitvisualizer.quantum_chemistry import *
 from .hcb_measurement.measurement_utils import *
 from .fermionic_excitation.orb_rotation import OrbitalRotation
 from .miscelaneus.giusepe import giuseppe
+from .miscelaneus.bar import giussepe_bar
 from .expval.expval import Braket,show_available_modules,show_supported_modules
