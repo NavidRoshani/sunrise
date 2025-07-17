@@ -1,6 +1,7 @@
-
+from sympy.physics.quantum.sho1d import Hamiltonian
 from tequila import TequilaException
-
+import tequila as tq
+import numpy as np
 from itertools import combinations
 import openfermion
 import fqe
@@ -9,60 +10,86 @@ import typing
 
 
 
+
 class FQEBraKet():
 
-    def __init__(self, one_body_integrals, two_body_integrals, constant, ket_instructions,
+    def __init__(self, n_ele, ket_instructions, one_body_integrals=None, two_body_integrals=None, constant=None,
                  bra_instructions = None, init_ket=None, init_bra=None):
 
-        h_of = make_fermionic_hamiltonian(one_body_integrals, two_body_integrals, constant,)
-        self.h_fqe = fqe.get_hamiltonian_from_openfermion(h_of)
-        n_qubits = one_body_integrals.shape[0] * 2
+        if (one_body_integrals is None and two_body_integrals is not None) \
+                or one_body_integrals is not None and two_body_integrals is None:
+            raise TequilaException("Both integrals are needed two conunstract a Hamiltonian")
 
-        self.ket = fqe.Wavefunction(param=[[n_qubits // 2, 0, n_qubits // 2]]) #probably only works for H
+        construct_ham= True
+        if one_body_integrals is None and  two_body_integrals is None:
+            construct_ham = False
+
+        if construct_ham:
+            h_of = make_fermionic_hamiltonian(one_body_integrals, two_body_integrals, constant,)
+            self.h_fqe = fqe.get_hamiltonian_from_openfermion(h_of)
+            self.n_orbitals = one_body_integrals.shape[0] #how to create this if its is non
+
+        self.n_ele = n_ele
+        self.init_ket = init_ket
+
+        self.parameter_map_ket=[tq.assign_variable(x[0]) for x in ket_instructions]
+        ket_instructions = [x[1:] for x in ket_instructions]
         self.ket_generator = create_fermionic_generators(ket_instructions)
 
-        bin_dict = generate_of_binary_dict(n_qubits//2, n_qubits//4)
-
-        if init_ket is None:
-            self.ket.set_wfn(strategy='hartree-fock')
-        else:
-
-            i = bin_dict[init_ket]
-            ket_coeff = self.ket.get_coeff((n_qubits // 2, 0))
-
-            ket_coeff[i][i] = 1
-            self.ket.set_wfn(strategy="from_data", raw_data={(n_qubits//2, 0): ket_coeff})
-
-        if bra_instructions is None:
-            self.bra = None
-            self.bra_generator = None
-        else:
-            self.bra = fqe.Wavefunction(param=[[n_qubits // 2, 0, n_qubits // 2]])
+        if bra_instructions is not None:
+            self.parameter_map_bra = [tq.assign_variable(x[0]) for x in bra_instructions]
+            bra_instructions = [x[1:] for x in bra_instructions]
             self.bra_generator = create_fermionic_generators(bra_instructions)
-            if init_bra is None:
-                self.bra.set_wfn(strategy='hartree-fock')
-            else:
-                i = bin_dict[init_bra]
-                bra_coeff = self.ket.get_coeff((8 // 2, 0))
-                bra_coeff[i][i] = 1
-                self.ket.set_wfn(strategy="from_data", raw_data={(8, 0): bra_coeff})
+
+        self.bra_instructions = bra_instructions
+        self.init_bra = init_bra
+        self.bin_dict = generate_of_binary_dict(self.n_orbitals, self.n_ele // 2)
+
 
 
     def __call__(self,variables, *args, **kwargs):
 
-        if len(variables.values()) != len(self.ket_generator.values()):
-            raise ValueError("Number of generators and number of variables don't fit")
-        zip_ket = zip(variables.values(), self.ket_generator.values())
 
+        variables = tq.format_variable_dictionary(variables)
+
+        ket = fqe.Wavefunction(param=[[self.n_ele, 0, self.n_orbitals]])  # probably only works for H
+
+        if self.init_ket is None:
+            ket.set_wfn(strategy='hartree-fock')
+        else:
+
+            i = self.bin_dict[self.init_ket]
+            ket_coeff = ket.get_coeff((self.n_ele, 0))
+            ket_coeff[i][i] = 1
+            ket.set_wfn(strategy="from_data", raw_data={(self.n_ele, 0): ket_coeff})
+
+        parameters_ket = [x(variables) for x in self.parameter_map_ket]
+        zip_ket = zip(parameters_ket, self.ket_generator.values())
         for argument in zip_ket:
-            self.ket = self.ket.time_evolve( 0.5 * argument[0], argument[1])
+           ket = ket.time_evolve(0.5 * argument[0], argument[1])
 
-        if self.bra is not None:
-            zip_bra = zip(variables.values(), self.bra_generator.values())
+
+        if self.bra_instructions is None:
+            bra = None
+        else:
+            bra = fqe.Wavefunction(param=[[self.n_ele, 0, self.n_orbitals]])
+
+            if self.init_bra is None:
+                bra.set_wfn(strategy='hartree-fock')
+            else:
+                i = self.bin_dict[self.init_bra]
+                bra_coeff = bra.get_coeff((self.n_ele, 0))
+                bra_coeff[i][i] = 1
+                bra.set_wfn(strategy="from_data", raw_data={(self.n_ele, 0): bra_coeff})
+
+            parameters_bra = [x(variables) for x in self.parameter_map_bra]
+            zip_bra = zip(parameters_bra, self.bra_generator.values())
+
             for argument in zip_bra:
-                self.bra = self.bra.time_evolve( 0.5 * argument[0], argument[1])
+                bra = bra.time_evolve(0.5 * argument[0], argument[1])
 
-        result = fqe.expectationValue(wfn=self.ket, ops=self.h_fqe, brawfn=self.bra)
+
+        result = fqe.expectationValue(wfn=ket, ops=self.h_fqe, brawfn=bra)
 
         return result
 
