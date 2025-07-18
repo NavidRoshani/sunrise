@@ -19,10 +19,9 @@ from tencirchem.static.evolve_statevector import get_statevector as get_statevec
 from tencirchem.static.evolve_tensornetwork import get_statevector_tensornetwork
 from tencirchem.static.evolve_pyscf import get_civector_pyscf
 
-from .evolve_pyscf import get_expval_and_grad_pyscf
-from .evolve_pyscf import get_energy_and_grad_pyscf
-from .evolve_civector import get_expval_and_grad_civector,get_expval_and_grad_civector_nocache
-from .evolve_civector import get_energy_and_grad_civector,get_energy_and_grad_civector_nocache
+from sunrise.expval.tcc_engine.evolve_pyscf import get_expval_and_grad_pyscf,get_energy_and_grad_pyscf
+from sunrise.expval.tcc_engine.evolve_civector import get_energy_and_grad_civector,get_energy_and_grad_civector_nocache
+from sunrise.expval.tcc_engine.evolve_civector import get_expval_and_grad_civector,get_expval_and_grad_civector_nocache
 from tequila import Variable,Objective,simulate
 
 logger = logging.getLogger(__name__)
@@ -36,9 +35,10 @@ GETVECTOR_MAP = {
     "pyscf": get_civector_pyscf,
 }
 
-def get_expval(angles, hamiltonian, n_qubits, n_elec_s,total_variables,
+def get_expval(angles, hamiltonian, n_qubits, n_elec_s,total_variables, 
     params,ex_ops: Tuple,engine ,mode: str = "fermion", init_state=None,
     params_bra=None,ex_ops_bra:Tuple=None,init_state_bra=None):
+    'Now retuns also the overlap betwen states'
     if ex_ops_bra is None:
         ex_ops_bra = ex_ops
     if init_state_bra is None:
@@ -66,18 +66,16 @@ def get_expval(angles, hamiltonian, n_qubits, n_elec_s,total_variables,
         map_params_bra, n_qubits, n_elec_s, tuple(ex_ops_bra),  tuple([*range(len(ex_ops_bra))]), mode=mode, init_state=init_state_bra
     )
     hket = apply_op(hamiltonian, ket)
-    return bra @ hket
 
-#Here only to get_energy_and_grad implemetations
+    return bra @ hket,bra @ ket
+
 def get_energy(angles, hamiltonian, n_qubits, n_elec_s, total_variables,params,ex_ops, mode, init_state, engine):
-
     assert len(angles)==len(total_variables)
     dangles = {total_variables[i].name:angles[i] for i in range(len(angles))}
     pa = []
     for p in params:
         pa.append(map_variables(p,dangles))
     map_params = tc.backend.numpy(tc.backend.convert_to_tensor(pa).astype(tc.rdtypestr))
-
     logger.info(f"Entering `get_energy`")
     ci_strings = get_ci_strings(n_qubits, n_elec_s, mode)
     init_state = translate_init_state(init_state, n_qubits, ci_strings)

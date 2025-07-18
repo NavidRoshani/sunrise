@@ -1,12 +1,15 @@
+from lib2to3.fixer_util import Number
 from tencirchem.static.evolve_civector import *
 from tencirchem.static.evolve_civector import _get_gradients_civector,_get_gradients_civector_nocache
 from tequila import simulate,Objective,Variable,grad,QTensor
 import tensorcircuit as tc
+from typing import  Union
+
 
 def get_expval_and_grad_civector(
     angles, hamiltonian, n_qubits, n_elec_s,total_variables,
     params,ex_ops: Tuple, mode: str = "fermion", init_state=None,
-    params_bra=None,ex_ops_bra:Tuple=None,init_state_bra=None):
+    params_bra=None,ex_ops_bra:Tuple|None=None,init_state_bra=None):
     #Fist check bra
     if ex_ops_bra is None: ex_ops_bra = ex_ops
     if params_bra is None: params_bra = params
@@ -59,19 +62,18 @@ def get_expval_and_grad_civector(
             ang_grad_bra[i,j]=simulate(grad(1*pa,an),variables=dangles)
     gradients = np.add(gradients_beforesum.dot(ang_grad),gradients_beforesum_bra.dot(ang_grad_bra))
 
-    return energy,  gradients
+    return energy,  gradients, bra @ ket
 
 def get_energy_and_grad_civector(
     angles, hamiltonian, n_qubits, n_elec_s, total_variables,
     params, ex_ops: Tuple,  mode: str = "fermion", init_state=None):
-
+    
     assert len(angles)==len(total_variables)
     dangles = {total_variables[i].name:angles[i] for i in range(len(angles))}
     pa = []
     for p in params: 
         pa.append(map_variables(p,dangles))
     map_params = tc.backend.numpy(tc.backend.convert_to_tensor(pa).astype(tc.rdtypestr))
-
     ket = get_civector(map_params, n_qubits, n_elec_s, ex_ops, [*range(len(ex_ops))], mode, init_state)
     bra = apply_op(hamiltonian, ket)
     energy = bra @ ket
@@ -129,7 +131,7 @@ def get_expval_and_grad_civector_nocache(
             ang_grad_bra[i,j]=simulate(grad(1*pa,an),variables=dangles)
     gradients = np.add(gradients_beforesum.dot(ang_grad),gradients_beforesum_bra.dot(ang_grad_bra))
 
-    return energy, gradients
+    return energy, gradients, bra @ ket
 
 def get_energy_and_grad_civector_nocache(
     angles, hamiltonian, n_qubits, n_elec_s, total_variables,
@@ -157,7 +159,7 @@ def get_energy_and_grad_civector_nocache(
     
     return energy, 2 * gradients
 
-def map_variables(x:list[Variable,Objective],dvariables:dict):
+def map_variables(x:Union[Variable,Objective],dvariables:dict):
     if isinstance(x,Variable):
         x = x.map_variables(dvariables)
     elif isinstance(x,Objective):

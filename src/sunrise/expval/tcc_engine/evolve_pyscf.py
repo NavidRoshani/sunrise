@@ -46,7 +46,7 @@ def get_expval_and_grad_pyscf(
         for j,an in enumerate(total_variables):
             ang_grad_bra[i,j]=simulate(grad(1*pa,an),variables=dangles)
     gradients = np.add(gradients_beforesum.dot(ang_grad),gradients_beforesum_bra.dot(ang_grad_bra))
-    return energy, gradients
+    return energy, gradients, bra @ ket
 
 
 def get_energy_and_grad_pyscf(

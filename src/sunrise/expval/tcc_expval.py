@@ -10,10 +10,12 @@ from numpy import array,ceil,pi
 from pyscf.gto import Mole
 from sunrise.expval.pyscf_molecule import from_tequila
 from copy import deepcopy
+from typing import Union
+
 #assumed to be installed pyscf since dependency for sunrise and tcc
 
 class TCCBraket:
-    def __init__(self,bra:list=None,ket:list=None,init_state_bra:list[QCircuit,QubitWaveFunction,Circuit,str]=None,
+    def __init__(self,bra:Union[list]|None=None,ket:Union[list] |None=None,init_state_bra:Union[QCircuit,QubitWaveFunction,Circuit,str]|None=None,
                  init_state_ket:list[QCircuit,QubitWaveFunction,Circuit,str]=None,tcc_kwargs:dict={},
                  variables_bra:any=None,variables_ket:any=None,*args,**kwargs):
         if 'n_qubits' in kwargs:
@@ -310,7 +312,7 @@ class TCCBraket:
             self.BK.engine = engine
         self.opt_res = None
         
-    def minimize(self,**kwargs):
+    def minimize(self,**kwargs)->Number:
         if 'init_guess_bra' in kwargs:
             self.init_guess_bra = kwargs['init_guess_bra']
         if "init_guess_ket" in kwargs:
@@ -322,13 +324,13 @@ class TCCBraket:
         self.opt_res.x = [2*i for i in self.opt_res.x] #translating to tq
         return self.BK.opt_res.e
 
-    def simulate(self,params:list[list,dict]):
+    def simulate(self,params:Union[list,dict]):
         if isinstance(params,Variables):
             params = params.store
         if isinstance(params,dict):
-            v = deepcopy(self.variables)
+            v: dict = deepcopy(self.variables)
             v.update(params)
-            tvars = deepcopy(self.BK.total_variables)
+            tvars: list = deepcopy(self.BK.total_variables)
             params = [map_variables(x,v) for x in tvars]
         params = [i/2 for i in params] #Here translation 
         return self.BK.expval(angles=params)
@@ -363,7 +365,7 @@ class TCCBraket:
         return self.BK.ex_ops_ket 
     
     @ket.setter
-    def ket(self, ket):
+    def ket(self, ket) -> None:
         '''
         Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (udud order, being 0 the lowest energy MO)
         '''
@@ -373,9 +375,9 @@ class TCCBraket:
         self.BK.ex_ops_ket = ket
 
     @property
-    def variables_bra(self):
+    def variables_bra(self) -> dict:
         """Tequila Circuit Bra variables."""
-        bar = deepcopy(self.BK.var_to_param_bra)
+        bar:dict = deepcopy(self.BK.var_to_param_bra)
         if bar is not None:
             for i in bar.keys(): #Here to tequila
                 if isinstance(bar[i],Number):
@@ -417,9 +419,9 @@ class TCCBraket:
         self.BK.params_ket = variables_ket
     
     @property
-    def variables(self):
+    def variables(self) -> dict:
         """Tequila circuit variables."""
-        bar = deepcopy(self.BK.var_to_param)
+        bar:dict = deepcopy(self.BK.var_to_param)
         if bar is not None:
             for i in bar.keys(): #Here to tequila 
                 if isinstance(bar[i],Number):

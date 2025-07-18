@@ -22,7 +22,7 @@ from tencirchem.static.engine_ucc import (
 )
 from tencirchem.static.ci_utils import get_ci_strings, get_ex_bitstring, get_init_civector
 from tencirchem.static.evolve_tensornetwork import get_circuit
-from .engine_braket import get_expval,get_expval_and_grad,get_energy_and_grad
+from sunrise.expval.tcc_engine.engine_braket import get_energy, get_expval,get_expval_and_grad,get_energy_and_grad
 from tequila import Objective,Variable,simulate
 
 class EXPVAL(UCC):
@@ -132,7 +132,7 @@ class EXPVAL(UCC):
         time: float
             Staging time. Returned when ``with_time`` is set to ``True``.
         """
-        if all([i is None for i in [self.init_state_bra,self.ex_ops_bra,self.params_bra]]) or self.is_diagonal():
+        if self.is_diagonal():
             expval_and_grad = scipy_opt_wrap(partial(self.energy_and_grad, engine=self.engine))
         else:
             expval_and_grad = scipy_opt_wrap(partial(self.expval_and_grad, engine=self.engine))
@@ -149,8 +149,10 @@ class EXPVAL(UCC):
 
     def is_diagonal(self)->bool:
         '''
-        Check is bra==ket, does not check if bra == None 
+        Check is bra==ket, also if bra == None -> bra = ket
         '''
+        if all([i is None for i in [self.init_state_bra,self.ex_ops_bra,self.params_bra]]):
+            return True
         if not (all([ex in self.ex_ops_bra for ex in self.ex_ops_ket]) and all([ex in self.ex_ops_ket for ex in self.ex_ops_bra])):
             return False
         if not np.allclose(self.init_state_bra,self.init_state_ket):
@@ -235,18 +237,57 @@ class EXPVAL(UCC):
         >>> round(uccsd.energy([0, 0]), 8)  # HF state
         -1.11670614
         """
+        if self.is_diagonal():
+            return self.energy(angles=angles,engine=engine)
         self._sanity_check()
         angles  = self._check_params_argument(angles)
         hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
-        e = get_expval(angles=angles,hamiltonian=hamiltonian, n_qubits=self.n_qubits, n_elec_s=self.n_elec_s,total_variables=self.total_variables,
+        e , s = get_expval(angles=angles,hamiltonian=hamiltonian, n_qubits=self.n_qubits, n_elec_s=self.n_elec_s,total_variables=self.total_variables,
                        engine= engine,mode=self.mode,ex_ops=self.ex_ops_ket , ex_ops_bra=self.ex_ops_bra, 
                        params=self.variables_ket ,params_bra=self.variables_bra,
                        init_state=self.init_state_ket , init_state_bra=self.init_state_bra)
-        return float(e) + self.e_core
-    
+        return float(e) + self.e_core*s
+
     def energy(self, angles : Tensor = None, engine: str = None) -> float:
-        return self.expval(angles=angles,engine=engine)
-    
+        """
+        Evaluate the total Expectation Value.
+
+        Parameters
+        ----------
+        angles: Tensor, optional
+            The circuit Variables value. Defaults to None, which uses the optimized parameter
+            and :func:`kernel` must be called before.
+        engine: str, optional
+            The engine to use. Defaults to ``None``, which uses ``self.engine``.
+
+        Returns
+        -------
+        Expectation Value: float
+            Total Expectation Value
+
+        See Also
+        --------
+        civector: Get the configuration interaction (CI) vector.
+        statevector: Evaluate the circuit state vector.
+        expval_and_grad: Evaluate the total Expectation Value and parameter gradients.
+
+        Examples
+        --------
+        >>> from tencirchem import UCCSD
+        >>> from tencirchem.molecule import h2
+        >>> uccsd = UCCSD(h2)
+        >>> round(uccsd.energy([0, 0]), 8)  # HF state
+        -1.11670614
+        """
+        if not self.is_diagonal():
+            return self.expval(angles=angles,engine=engine)
+        self._sanity_check()
+        angles  = self._check_params_argument(angles)
+        hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
+        e = get_energy(angles=angles,hamiltonian=hamiltonian, n_qubits=self.n_qubits, n_elec_s=self.n_elec_s,total_variables=self.total_variables,
+                       engine= engine,mode=self.mode,ex_ops=self.ex_ops_ket,params=self.variables_ket,init_state=self.init_state_ket)
+        return float(e) + self.e_core
+
     def expval_and_grad(self, angles : Tensor = None, engine: str = None) -> Tuple[float, Tensor]:
         """
         Evaluate the total Expectation Value and parameter gradients.
@@ -286,12 +327,13 @@ class EXPVAL(UCC):
         self._sanity_check()
         angles  = self._check_params_argument(angles)
         hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
-        e, g = get_expval_and_grad(hamiltonian=hamiltonian, n_qubits=self.n_qubits, angles= angles,total_variables=self.total_variables,
+        e, g ,s= get_expval_and_grad(hamiltonian=hamiltonian, n_qubits=self.n_qubits, angles= angles,total_variables=self.total_variables,
                                    n_elec_s=self.n_elec_s, engine=engine, mode=self.mode, 
                                    ex_ops=self.ex_ops_ket , ex_ops_bra=self.ex_ops_bra,
                                    params=self.variables_ket,params_bra=self.variables_bra,
                                    init_state=self.init_state_ket, init_state_bra= self.init_state_bra) 
-        return float(e + self.e_core), tc.backend.numpy(g)
+        return float(e + self.e_core*s), tc.backend.numpy(g)
+
 
     def energy_and_grad(self, angles: Tensor = None, engine: str = None) -> Tuple[float, Tensor]:
             """
@@ -826,7 +868,7 @@ class EXPVAL(UCC):
         return len(Objective(self.variables_ket).extract_variables())
 
     @property
-    def variables_ket(self):
+    def variables_ket(self) -> dict|None:
         return self._variables_ket
 
     @property
@@ -883,7 +925,7 @@ class EXPVAL(UCC):
         return d
 
     @property
-    def total_variables(self):
+    def total_variables(self) -> list[Variable] | None   :
         if self.variables_bra is not None and  self.variables_bra is not None:
             return Objective(self.variables_bra+self.variables_ket).extract_variables()
         elif self.variables_bra is None:
