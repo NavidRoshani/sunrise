@@ -312,7 +312,7 @@ class TCCBraket:
             self.BK.engine = engine
         self.opt_res = None
         
-    def minimize(self,**kwargs)->Number:
+    def minimize(self,**kwargs)->float:
         if 'init_guess_bra' in kwargs:
             self.init_guess_bra = kwargs['init_guess_bra']
         if "init_guess_ket" in kwargs:
@@ -324,19 +324,19 @@ class TCCBraket:
         self.opt_res.x = [2*i for i in self.opt_res.x] #translating to tq
         return self.BK.opt_res.e
 
-    def simulate(self,params:Union[list,dict]):
+    def simulate(self,params:Union[list,dict])->float:
         if isinstance(params,Variables):
             params = params.store
         if isinstance(params,dict):
             v: dict = deepcopy(self.variables)
             v.update(params)
             tvars: list = deepcopy(self.BK.total_variables)
-            params = [map_variables(x,v) for x in tvars]
-        params = [i/2 for i in params] #Here translation 
+            params:list = [map_variables(x,v) for x in tvars]
+        params:list = [i/2 for i in params] #Here translation 
         return self.BK.expval(angles=params)
 
     @property
-    def energy(self):
+    def energy(self)->float:
         return self.opt_res.e
 
     @property
@@ -381,7 +381,7 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #Here to tequila
                 if isinstance(bar[i],Number):
-                    bar[i] = 2*bar[i]
+                    bar[i] = 2*(bar[i]%pi)
         return bar 
     
     @property
@@ -403,7 +403,7 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #to tequila
                 if isinstance(bar[i],Number):
-                    bar[i] = 2*bar[i]
+                    bar[i] = 2*(bar[i]%pi)
         return bar
     
     @property
@@ -425,7 +425,7 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #Here to tequila 
                 if isinstance(bar[i],Number):
-                    bar[i] = 2*bar[i]
+                    bar[i] = 2*(bar[i]%pi)
         return bar 
     
     @property
@@ -489,11 +489,11 @@ class TCCBraket:
         """
         Initial Angle Value for minimization, default all 0.
         """
-        return [i for i in self.BK.init_guess]
+        return [2*i for i in self.BK.init_guess]
     
     @init_guess.setter
     def init_guess(self, init_guess):
-        self.BK.init_guess = [i for i in init_guess]
+        self.BK.init_guess = [i/2 for i in init_guess]
 
 def init_state_from_wavefunction(wvf:QubitWaveFunction):
     if not isinstance(wvf._state,dict):

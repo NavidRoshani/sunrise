@@ -66,7 +66,6 @@ def get_expval(angles, hamiltonian, n_qubits, n_elec_s,total_variables,
         map_params_bra, n_qubits, n_elec_s, tuple(ex_ops_bra),  tuple([*range(len(ex_ops_bra))]), mode=mode, init_state=init_state_bra
     )
     hket = apply_op(hamiltonian, ket)
-
     return bra @ hket,bra @ ket
 
 def get_energy(angles, hamiltonian, n_qubits, n_elec_s, total_variables,params,ex_ops, mode, init_state, engine):
