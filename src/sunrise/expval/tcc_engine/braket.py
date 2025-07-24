@@ -188,7 +188,6 @@ class EXPVAL(UCC):
         time1 = time()
         opt_res = minimize(energy_and_grad, x0=self.init_guess, jac=True, method="L-BFGS-B", options=options)
         time2 = time()
-
         if not opt_res.success:
             logger.warning("Optimization failed. See `.opt_res` for details.")
 
@@ -559,7 +558,7 @@ class EXPVAL(UCC):
         formatters = {"flop": format_flop}
         print(df.to_string(index=False, formatters=formatters))
 
-    def get_init_state_dataframe(self, init_state, coeff_epsilon: float = DISCARD_EPS,ket:bool=True) -> pd.DataFrame:
+    def get_init_state_dataframe(self, init_state=None, coeff_epsilon: float = DISCARD_EPS,ket:bool=True) -> pd.DataFrame:
         """
         Returns initial state information dataframe.
 

@@ -12,11 +12,13 @@ def from_tequila(molecule:QuantumChemistryBase,**kwargs)->pyscf.gto.Mole:
     else:
         point_group = None
 
-    mol = pyscf.gto.Mole()
-    mol.atom = pyscf_geomstring
-    mol.basis = molecule.parameters.basis_set
-    mol.charge = molecule.parameters.charge
-
+    mol = pyscf.gto.M(
+        atom=pyscf_geomstring,
+        basis=molecule.parameters.basis_set,
+        charge=molecule.parameters.charge,
+        verbose=0,
+        spin=0,
+    )
     if point_group is not None:
         if point_group.lower() != "c1":
             mol.symmetry = True
@@ -28,13 +30,14 @@ def from_tequila(molecule:QuantumChemistryBase,**kwargs)->pyscf.gto.Mole:
     mol.symmetry = False
 
     mol.build(parse_arg=False)
-
+    mol.ao2mo(mo_coeffs=molecule.integral_manager.orbital_coefficients)
+    mol.build()
     # solve restricted HF
-    mf = pyscf.scf.RHF(mol)
+    mf = pyscf.scf.RHF(mol)#.run()
     mf.verbose = False
     if "verbose" in kwargs:
         mf.verbose = kwargs["verbose"]
-    mf.kernel()
     mf.mo_coeff = molecule.integral_manager.orbital_coefficients
-    mf.build()
+    # mf.kernel()
+    
     return mf

@@ -205,7 +205,6 @@ class TCCBraket:
         else:
             int1e = None
             int2e = None
-            n_elec = None
             e_core = None
             mo_coeff = None
             ovlp = None
@@ -349,9 +348,9 @@ class TCCBraket:
     @bra.setter
     def bra(self, bra):
         '''
-        Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (udud order, being 0 the lowest energy MO)
+        Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (Upthendown order)
         '''
-        bra,params_bra,_ = from_indices(bra,len(self.BK.aslst))
+        bra,params_bra,_ = from_indices(bra)
         if self.variables_bra is None:
 
             self.variables_bra = params_bra
@@ -367,9 +366,9 @@ class TCCBraket:
     @ket.setter
     def ket(self, ket) -> None:
         '''
-        Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (udud order, being 0 the lowest energy MO)
+        Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (Upthendown order)
         '''
-        ket,params_ket,_ = from_indices(ket,len(self.BK.aslst))
+        ket,params_ket,_ = from_indices(ket)
         if self.variables_ket is None: 
             self.variables_ket = params_ket
         self.BK.ex_ops_ket = ket
@@ -386,8 +385,8 @@ class TCCBraket:
     
     @property
     def params_bra(self):
-        """TCC Circuit Bra parameters (values after minimization or variables name). If value, they are in tcc periodicity (tq/2=tcc)"""
-        return [self.BK.params_bra]
+        """TCC Circuit Bra parameters (values after minimization or variables name)."""
+        return self.BK.params_bra
     
     @variables_bra.setter
     def variables_bra(self, variables_bra):
@@ -408,7 +407,7 @@ class TCCBraket:
     
     @property
     def params_ket(self):
-        """TCC Circuit Ket parameters (values after minimization or variables name). If value, they are in tcc periodicity (tq/2=tcc)"""
+        """TCC Circuit Ket parameters (values after minimization or variables name)."""
         return self.BK.params_ket
     
     @variables_ket.setter
@@ -430,7 +429,7 @@ class TCCBraket:
     
     @property
     def params(self):
-        """TCC parameters (values after minimization or variables name). If value, they are in tcc periodicity (tq/2=tcc)"""
+        """TCC parameters (values after minimization or variables name)."""
         return [i for i in self.BK.params if i is not None]
     
     @variables.setter
@@ -501,16 +500,15 @@ def init_state_from_wavefunction(wvf:QubitWaveFunction):
     init_state = []
     for i in wvf._state:
         vec = bin(i)[2:]
-        vup = ''
-        vdw = ''
-        for j in range(len(vec)//2):
-            vup += vec[2*j]
-            vdw += vec[2*j+1]
-        vec = (vup + vdw)[::-1]
-        init_state.append([vec,wvf._state[i].real])#tcc automatically does this, but with an anoying message everytime
+        if len(vec) < wvf.n_qubits:
+            vec = '0'*(wvf.n_qubits-len(vec))+vec
+        init_state.append([vec[::-1],wvf._state[i].real])#tcc automatically does this, but with an anoying message everytime
     return init_state
 
 def init_state_from_array(wvf:QubitWaveFunction,tol=1e-6):
+    '''
+    Expected Initial State in UptheDown
+    '''
     if isinstance(wvf._state,dict):
         return init_state_from_wavefunction(wvf)
     init_state = []
@@ -520,20 +518,14 @@ def init_state_from_array(wvf:QubitWaveFunction,tol=1e-6):
         vec = BitString.from_int(i)
         vec.nbits = nq
         vec = vec.binary
-        vup = ''
-        vdw = ''
-        for j in range(len(vec)//2):
-            vup += vec[2*j]
-            vdw += vec[2*j+1]
-        vec = (vup + vdw)
         if abs(idx) > tol:
-            init_state.append([vec,idx.real]) #tcc automatically does this, but with an anoying message everytime
+            init_state.append([vec[::-1],idx.real]) #tcc automatically does this, but with an anoying message everytime
     return init_state
 
-def from_indices(indices,nmo):
+def from_indices(indices):
     '''
-    Expected indices like [[(0,2),(1,3),...],[(a,b),(c,d),...],...]
-    Returned [(0,0+nno,...,1+nmo,2),(a,c,...,d,b)]
+    Expected indices like [[(0,1),(n_mo+0,n_mo+1),...],[(a,b),(c,d),...],...] (in upthendown)
+    Returned [(0,n_no+0,...,n_mo+1,1),(a,c,...,d,b)]
     '''
     if indices is None:
         return None,None,None
@@ -548,8 +540,8 @@ def from_indices(indices,nmo):
         params.append(str(exct))
         param_ids.append(len(param_ids))
         for idx in exct:
-            exc.append(idx[0]//2+(idx[0]%2)*nmo)
-            exc.insert(0,idx[1]//2+(idx[1]%2)*nmo)
+            exc.append(idx[0])
+            exc.insert(0,idx[1])
         ex_ops.append(tuple(exc))
     return ex_ops,params,param_ids
 

@@ -8,7 +8,7 @@ from typing import  Union
 from numbers import Number
 
 SUPPORTED_FERMIONIC_BACKENDS = ["tequila", 'fqe', "tcc"]
-INSTALLED_FERMIONIC_BACKENDS = {"tequila": TequilaBraket}
+INSTALLED_FERMIONIC_BACKENDS = {}#{"tequila": TequilaBraket}
 
 try:
     from sunrise.expval.tcc_expval import TCCBraket
@@ -62,8 +62,10 @@ def from_Qcircuit(circuit:QCircuit,variables:Variables|None=None)->Union[list,QC
         if begining and not hasattr(gate,'_parameter') or isinstance(gate._parameter,Number):
             reference += gate
         elif isinstance(gate,QubitExcitationImpl): #maybe we can consider other gates but basic implementation for the moment
-            begining = False
-            if isinstance(gate,FermionicGateImpl):
+            if isinstance(gate._parameter,Number):
+                reference += gate
+            elif isinstance(gate,FermionicGateImpl):
+                begining = False
                 indices.append(gate.indices)
             else:
                 temp = []
