@@ -18,6 +18,9 @@ class TCCBraket:
     def __init__(self,bra:Union[list]|None=None,ket:Union[list] |None=None,init_state_bra:Union[QCircuit,QubitWaveFunction,Circuit,str]|None=None,
                  init_state_ket:list[QCircuit,QubitWaveFunction,Circuit,str]=None,tcc_kwargs:dict={},
                  variables_bra:any=None,variables_ket:any=None,*args,**kwargs):
+        if 'reference' in kwargs:
+            kwargs['init_state'] = kwargs['reference']
+            kwargs.pop('reference') 
         if 'n_qubits' in kwargs:
             self.n_qubits = kwargs['n_qubits']
             kwargs.pop('n_qubits')
@@ -85,13 +88,19 @@ class TCCBraket:
                 init_state = init_state_from_wavefunction(res)
                 n_elec = init_state[0][0].count('1')
             elif isinstance(init_state,str):
-                init_state = init_state_from_wavefunction(QubitWaveFunction.from_string(init_state))
+                wvf = QubitWaveFunction.from_string(init_state)
+                if self.n_qubits is not None:
+                    wvf.n_qubits = self.n_qubits
+                init_state = init_state_from_wavefunction()
                 n_elec = init_state[0][0].count('1')
             elif isinstance(init_state,QubitWaveFunction):
+                if self.n_qubits is not None:
+                    init_state._n_qubits = self.n_qubits                    
                 init_state = init_state_from_wavefunction(init_state)
                 n_elec = init_state[0][0].count('1')
             elif isinstance(init_state,Circuit):
-                init_state._nqubits = self.n_qubits
+                if self.n_qubits is not None:
+                    init_state._nqubits = self.n_qubits
                 init_state = init_state.state()
                 n_elec = [bin(i) for i in range(len(init_state)) if init_state[i].real>1.e-6][0].count('1')
             elif isinstance(init_state_ket,(list,array)):
@@ -116,9 +125,14 @@ class TCCBraket:
                 init_state_bra = init_state_from_wavefunction(simulate(init_state_bra,variables=ivariables))
                 n_e_bra = init_state_bra[0][0].count('1')
             elif isinstance(init_state_bra,str):
-                init_state_bra = init_state_from_wavefunction(QubitWaveFunction.from_string(init_state_bra))
+                wvf = QubitWaveFunction.from_string(init_state_bra)
+                if self.n_qubits is not None:
+                    wvf._n_qubits = self.n_qubits
+                init_state_bra = init_state_from_wavefunction(wvf)
                 n_e_bra = init_state_bra[0][0].count('1')
             elif isinstance(init_state_bra,QubitWaveFunction):
+                if self.n_qubits is not None:
+                    init_state_bra._n_qubits = self.n_qubits
                 init_state_bra = init_state_from_wavefunction(init_state_bra)
                 n_e_bra = init_state_bra[0][0].count('1')
             elif isinstance(init_state_bra,Circuit):
@@ -146,9 +160,14 @@ class TCCBraket:
                 init_state_ket = init_state_from_wavefunction(simulate(init_state_ket,variables=ivariables))
                 n_e_ket = init_state_ket[0][0].count('1')
             elif isinstance(init_state_ket,str):
+                wfv = QubitWaveFunction.from_string(init_state_ket)
+                if self.n_qubits is not None:
+                    wfv._n_qubits = self.n_qubits
                 init_state_ket = init_state_from_wavefunction(QubitWaveFunction.from_string(init_state_ket))
                 n_e_ket = init_state_ket[0][0].count('1')
             elif isinstance(init_state_ket,QubitWaveFunction):
+                if self.n_qubits is not None:
+                    init_state_ket._n_qubits = self.n_qubits
                 init_state_ket = init_state_from_wavefunction(init_state_ket)
                 n_e_ket = init_state_ket[0][0].count('1')
             elif isinstance(init_state_ket,Circuit):
@@ -189,10 +208,14 @@ class TCCBraket:
             molecule = kwargs['molecule']
             kwargs.pop('molecule')
             if isinstance(molecule,qc_base.QuantumChemistryBase):
+                aslst = [i.idx_total for i in molecule.integral_manager.active_orbitals]
+                active_space = (molecule.n_electrons,molecule.n_orbitals)
                 molecule = from_tequila(molecule)
             elif isinstance(molecule,Mole):
                 self.n_qubits = 2*molecule.mo_coeff.shape[0]
-            self.BK = EXPVAL(mol=molecule,run_hf= False, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**tcc_kwargs)
+                aslst = [*range(molecule.nao_nr_range)]
+                active_space = (molecule.nelectron,molecule.nao_nr)
+            self.BK = EXPVAL(mol=molecule,run_hf= False, run_mp2= False, run_ccsd= False, run_fci= True,init_method="zeros",aslst=aslst,active_space=active_space,**tcc_kwargs)
         elif 'integral_manager' in kwargs and 'parameters' in kwargs:
             integral = kwargs['integral_manager']
             params = kwargs['parameters']
@@ -200,6 +223,8 @@ class TCCBraket:
             kwargs.pop('parameters')
             molecule = Molecule(parameters=params,integral_manager=integral)
             self.n_qubits = 2*molecule.n_orbitals
+            aslst = [i.idx_total for i in integral.active_orbitals]
+            active_space = (molecule.n_electrons,molecule.n_orbitals)
             molecule = from_tequila(molecule)
             self.BK = EXPVAL(mol=molecule,run_hf= False, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**tcc_kwargs)
         else:
@@ -320,7 +345,7 @@ class TCCBraket:
             self.init_state = kwargs["init_guess"]
         self.BK.kernel()
         self.opt_res = deepcopy(self.BK.opt_res)
-        self.opt_res.x = [2*i for i in self.opt_res.x] #translating to tq
+        self.opt_res.x = [-2*i for i in self.opt_res.x] #translating to tq
         return self.BK.opt_res.e
 
     def simulate(self,params:Union[list,dict])->float:
@@ -331,7 +356,7 @@ class TCCBraket:
             v.update(params)
             tvars: list = deepcopy(self.BK.total_variables)
             params:list = [map_variables(x,v) for x in tvars]
-        params:list = [i/2 for i in params] #Here translation 
+        params:list = [-i/2 for i in params] #Here translation 
         return self.BK.expval(angles=params)
 
     @property
@@ -350,7 +375,7 @@ class TCCBraket:
         '''
         Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (Upthendown order)
         '''
-        bra,params_bra,_ = from_indices(bra)
+        bra,params_bra,_ = translate_indices(bra)
         if self.variables_bra is None:
 
             self.variables_bra = params_bra
@@ -368,7 +393,7 @@ class TCCBraket:
         '''
         Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (Upthendown order)
         '''
-        ket,params_ket,_ = from_indices(ket)
+        ket,params_ket,_ = translate_indices(ket)
         if self.variables_ket is None: 
             self.variables_ket = params_ket
         self.BK.ex_ops_ket = ket
@@ -380,7 +405,7 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #Here to tequila
                 if isinstance(bar[i],Number):
-                    bar[i] = 2*(bar[i]%pi)
+                    bar[i] = -2*(bar[i])
         return bar 
     
     @property
@@ -402,7 +427,7 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #to tequila
                 if isinstance(bar[i],Number):
-                    bar[i] = 2*(bar[i]%pi)
+                    bar[i] = -2*(bar[i])
         return bar
     
     @property
@@ -424,7 +449,7 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #Here to tequila 
                 if isinstance(bar[i],Number):
-                    bar[i] = 2*(bar[i]%pi)
+                    bar[i] = -2*(bar[i])
         return bar 
     
     @property
@@ -488,11 +513,11 @@ class TCCBraket:
         """
         Initial Angle Value for minimization, default all 0.
         """
-        return [2*i for i in self.BK.init_guess]
+        return [-2*i for i in self.BK.init_guess]
     
     @init_guess.setter
     def init_guess(self, init_guess):
-        self.BK.init_guess = [i/2 for i in init_guess]
+        self.BK.init_guess = [-i/2 for i in init_guess]
 
 def init_state_from_wavefunction(wvf:QubitWaveFunction):
     if not isinstance(wvf._state,dict):
@@ -502,7 +527,7 @@ def init_state_from_wavefunction(wvf:QubitWaveFunction):
         vec = bin(i)[2:]
         if len(vec) < wvf.n_qubits:
             vec = '0'*(wvf.n_qubits-len(vec))+vec
-        init_state.append([vec[::-1],wvf._state[i].real])#tcc automatically does this, but with an anoying message everytime
+        init_state.append([vec,wvf._state[i].real])#tcc automatically does this, but with an anoying message everytime
     return init_state
 
 def init_state_from_array(wvf:QubitWaveFunction,tol=1e-6):
@@ -519,10 +544,10 @@ def init_state_from_array(wvf:QubitWaveFunction,tol=1e-6):
         vec.nbits = nq
         vec = vec.binary
         if abs(idx) > tol:
-            init_state.append([vec[::-1],idx.real]) #tcc automatically does this, but with an anoying message everytime
+            init_state.append([vec,idx.real]) #tcc automatically does this, but with an anoying message everytime
     return init_state
 
-def from_indices(indices):
+def translate_indices(indices):
     '''
     Expected indices like [[(0,1),(n_mo+0,n_mo+1),...],[(a,b),(c,d),...],...] (in upthendown)
     Returned [(0,n_no+0,...,n_mo+1,1),(a,c,...,d,b)]

@@ -52,9 +52,10 @@ def Braket(molecule=None,indices:list[list,tuple]|None=None,reference:list[str,l
     return INSTALLED_FERMIONIC_BACKENDS[backend.lower()](molecule=molecule,reference=reference,indices=indices,optimizer=optimizer,operator=operator,*args,**kwargs) #TODO: DO something not anoying
 
 
-def from_Qcircuit(circuit:QCircuit,variables:Variables|None=None)->Union[list,QCircuit]:
+def from_Qcircuit(circuit:QCircuit,variables:Variables|None=None)->Union[list,QCircuit,list]:
     indices:list = []
     reference:QCircuit = QCircuit()
+    params:list=[]
     begining = True
     if variables is not None:
         circuit = circuit.map_variables(variables)
@@ -67,10 +68,12 @@ def from_Qcircuit(circuit:QCircuit,variables:Variables|None=None)->Union[list,QC
             elif isinstance(gate,FermionicGateImpl):
                 begining = False
                 indices.append(gate.indices)
+                params.append(gate.parameter)
             else:
                 temp = []
+                params.append(gate.parameter)
                 for i in range(len(gate._target)//2):
                     temp.append((gate._target[2*i],gate._target[2*i+1]))
         else:
             raise TequilaException(f'Gate {gate._name}({gate._parameter}) not allowed')
-    return indices,reference
+    return indices,reference,params
