@@ -43,3 +43,21 @@ def test_upccsd(geom,backend):
     sunwfn = tq.simulate(U,sunval.variables)
     assert isclose(tqE.energy,sunE)
     assert isclose(abs(tqwfn.inner(sunwfn)),1,1.e-3)
+
+@pytest.mark.parametrize('backend',INSTALLED_FERMIONIC_BACKENDS)
+def test_overlap(backend):
+    geom = 'H 0. 0. 0. \n H 0. 0. 1. \n H 0. 0. 2. \n H 0. 0. 3.'
+    mol = tq.Molecule(geometry=geom,basis_set='sto-3g',transformation='reordered-jordan-wigner').use_native_orbitals()
+    H = mol.make_hamiltonian()
+    U1 = mol.make_ansatz("SPA",edges=[(0,1),(2,3)])
+    U2 = mol.make_ansatz("SPA",edges=[(0,2),(1,3)])
+    res1 = tq.minimize(tq.ExpectationValue(H=H,U=U1),silent=True)
+    res2 = tq.minimize(tq.ExpectationValue(H=H,U=U2),silent=True)
+    idx1,ref1,p1 = from_Qcircuit(mol.make_ansatz("SPA",edges=[(0,1),(2,3)],optimize=False))
+    idx2,ref2,p2 = from_Qcircuit(mol.make_ansatz("SPA",edges=[(0,2),(1,3)],optimize=False))
+    rov,iov = tq.BraKet(bra=U1,ket=U2,H=H)
+    res1.angles.update(res2.angles)
+    tqov = tq.simulate(rov,variables=res1.angles) + tq.simulate(iov,variables=res1.angles)
+    sunval = Braket(molecule=mol,bra=idx1,ket=idx2,init_state_bra=ref1,init_state_ket=ref2,backend=backend,variables_bra=p1,variables_ket=p2)
+    bkov = sunval.simulate(res1.angles)
+    assert isclose(tqov,bkov,atol=1.e-3)

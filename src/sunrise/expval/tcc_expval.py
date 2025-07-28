@@ -2,6 +2,7 @@ import tencirchem as tcc
 from sunrise.expval.tcc_engine.braket import EXPVAL
 from tequila import QCircuit,TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective
 from tequila.objective.objective import Variables
+from tequila.quantumchemistry.chemistry_tools import NBodyTensor
 from tequila.quantumchemistry import qc_base
 from tequila.utils.bitstrings import BitString
 from tensorcircuit import Circuit
@@ -16,7 +17,7 @@ from typing import Union
 
 class TCCBraket:
     def __init__(self,bra:Union[list]|None=None,ket:Union[list] |None=None,init_state_bra:Union[QCircuit,QubitWaveFunction,Circuit,str]|None=None,
-                 init_state_ket:list[QCircuit,QubitWaveFunction,Circuit,str]=None,tcc_kwargs:dict={},
+                 init_state_ket:list[QCircuit,QubitWaveFunction,Circuit,str]|None=None,tcc_kwargs:dict={},
                  variables_bra:any=None,variables_ket:any=None,*args,**kwargs):
         if 'reference' in kwargs:
             kwargs['init_state'] = kwargs['reference']
@@ -103,7 +104,7 @@ class TCCBraket:
                     init_state._nqubits = self.n_qubits
                 init_state = init_state.state()
                 n_elec = [bin(i) for i in range(len(init_state)) if init_state[i].real>1.e-6][0].count('1')
-            elif isinstance(init_state_ket,(list,array)):
+            elif isinstance(init_state,{list,array}):
                 n_elec = [bin(i) for i in range(len(init_state)) if init_state[i].real>1.e-6][0].count('1')
             else:
                 try:
@@ -203,7 +204,8 @@ class TCCBraket:
             if n_e_bra is not None:
                 assert n_e_bra == n_e_ket
             n_elec = n_e_ket
-            
+
+        run_hf = (init_state is None) or (init_state_bra is None) or (init_state_ket is None)   
         if 'molecule' in kwargs and kwargs['molecule']:
             molecule = kwargs['molecule']
             kwargs.pop('molecule')
@@ -215,7 +217,7 @@ class TCCBraket:
                 self.n_qubits = 2*molecule.mo_coeff.shape[0]
                 aslst = [*range(molecule.nao_nr_range)]
                 active_space = (molecule.nelectron,molecule.nao_nr)
-            self.BK = EXPVAL(mol=molecule,run_hf= False, run_mp2= False, run_ccsd= False, run_fci= True,init_method="zeros",aslst=aslst,active_space=active_space,**tcc_kwargs)
+            self.BK = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",aslst=aslst,active_space=active_space,engine=engine,**tcc_kwargs)
         elif 'integral_manager' in kwargs and 'parameters' in kwargs:
             integral = kwargs['integral_manager']
             params = kwargs['parameters']
@@ -226,7 +228,7 @@ class TCCBraket:
             aslst = [i.idx_total for i in integral.active_orbitals]
             active_space = (molecule.n_electrons,molecule.n_orbitals)
             molecule = from_tequila(molecule)
-            self.BK = EXPVAL(mol=molecule,run_hf= False, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**tcc_kwargs)
+            self.BK = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**tcc_kwargs)
         else:
             int1e = None
             int2e = None
@@ -239,18 +241,29 @@ class TCCBraket:
             elif "one_body_integrals"  in kwargs:
                 int1e = kwargs['one_body_integrals']
                 kwargs.pop('one_body_integrals')
+            elif "h"  in kwargs:
+                int1e = kwargs['h']
+                kwargs.pop('h')
             if 'int2e' in kwargs:
                 int2e = kwargs['int2e']
                 kwargs.pop('int2e')
             elif 'two_body_integrals' in kwargs:
                 int2e = kwargs['two_body_integrals']
                 kwargs.pop('two_body_integrals')
+            elif 'g' in kwargs:
+                int2e = kwargs['g']
+                kwargs.pop('g')
+            if isinstance(int2e,NBodyTensor):
+                int2e = int2e.elems
             if 'e_core' in kwargs:
                 e_core = kwargs['e_core']
                 kwargs.pop('e_core')
             elif 'constant_term' in kwargs:
                 e_core = kwargs['constant_term']
                 kwargs.pop('constant_term')
+            elif 'c' in kwargs:
+                e_core = kwargs['c']
+                kwargs.pop('c')    
             else: e_core = 0.
             if 'mo_coeff' in kwargs:
                 mo_coeff = kwargs['mo_coeff']
@@ -264,11 +277,14 @@ class TCCBraket:
             elif 'overlap_integrals' in kwargs:
                 ovlp = kwargs['overlap_integrals']
                 kwargs.pop('overlap_integrals')
+            elif 's' in kwargs:
+                ovlp = kwargs['s']
+                kwargs.pop('s')
             if 'n_elec' in kwargs:
                 n_elec=kwargs['n_elec']
                 kwargs.pop('n_elec')
             if all([i is not None for i in[int2e,int1e,mo_coeff]]):
-                self.BK = EXPVAL.from_integral(int1e=int1e, int2e=int2e,n_elec= n_elec, e_core=e_core,ovlp=ovlp,mo_coeff=mo_coeff,init_method="zeros",run_hf= False, run_mp2= False, run_ccsd= False, run_fci= False,**tcc_kwargs)
+                self.BK = EXPVAL.from_integral(int1e=int1e, int2e=int2e,n_elec= n_elec, e_core=e_core,ovlp=ovlp,mo_coeff=mo_coeff,init_method="zeros",run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,**tcc_kwargs)
             else:
                 raise TequilaException('Not enough molecular data provided')
 
@@ -321,19 +337,15 @@ class TCCBraket:
             self.ket = ket
         if bra is not None:
             self.bra = bra
-        
+        if 'init_guess' in kwargs:
+            self.init_guess = kwargs['init_guess']
+            kwargs.pop('init_guess')
         if 'init_guess_ket' in kwargs:
             self.init_guess_ket = kwargs['init_guess_ket']
             kwargs.pop('init_guess_ket')
         if 'init_guess_bra' in kwargs:
             self.init_guess_bra = kwargs['init_guess_bra']
             kwargs.pop('init_guess_bra')
-        
-        if 'engine' in kwargs:
-            engine = kwargs['engine']
-            kwargs.pop('engine')
-        if engine is not None:
-            self.BK.engine = engine
         self.opt_res = None
         
     def minimize(self,**kwargs)->float:
