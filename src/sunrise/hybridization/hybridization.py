@@ -278,6 +278,8 @@ class Graph:
 
         # Handle case where there are no bonds.
         if num_bonds == 0:
+            if atom.name == 'Hydrogen' or atom.name == 'Helium':
+                return np.eye(1)
             return np.eye(5 if not strip_orbitals else 4)
 
         # Get the ideal hybrid orbital directions (e.g., sp, sp², sp³).
@@ -341,6 +343,8 @@ class Graph:
         bonded_atoms = self.get_bonds(atom)
 
         if len(bonded_atoms) == 0 or sp == None:
+            if atom.name == 'Hydrogen' or atom.name == 'Helium':
+                return np.eye(1)
             return np.eye(5 if not strip_orbitals else 4)
         hit_data = None
 
@@ -388,6 +392,7 @@ class Graph:
         '''
         matrices = [self.apply_hybridization(atom, strip_orbitals=strip_orbitals) for atom in self.atoms]
         bond_data = [self.get_bonds(atom) for atom in self.atoms]
+        print('Sizes ',[matrix.shape[0] for matrix in matrices])
         size = sum(matrix.shape[0] for matrix in matrices)
         coefficient_matrix = np.zeros((size, size))
         # Fill the final matrix by placing each matrix along the diagonal
