@@ -3,3 +3,5 @@
 **/.idea
 **/.git
 **/.hdf5
+**/.vscode
+**/.pytest_cache
