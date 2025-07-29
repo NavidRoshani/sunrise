@@ -392,7 +392,6 @@ class Graph:
         '''
         matrices = [self.apply_hybridization(atom, strip_orbitals=strip_orbitals) for atom in self.atoms]
         bond_data = [self.get_bonds(atom) for atom in self.atoms]
-        print('Sizes ',[matrix.shape[0] for matrix in matrices])
         size = sum(matrix.shape[0] for matrix in matrices)
         coefficient_matrix = np.zeros((size, size))
         # Fill the final matrix by placing each matrix along the diagonal

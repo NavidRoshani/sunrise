@@ -36,6 +36,9 @@ class HybridBase(qc_base):
         args
         kwargs
         '''
+        self._select = {}
+        self._rdm1 = None
+        self._rdm2 = None
         if ("condense" in kwargs):
             self.condense = kwargs["condense"]
             kwargs.pop("condense")
@@ -88,12 +91,12 @@ class HybridBase(qc_base):
         if orbital_type is not None and orbital_type.lower() == "native":
             self.integral_manager.transform_to_native_orbitals()
         #tq init overwriten bcs I need the number of orbitals for select->transformation
-        self.select = {}
-        self.transformation = self._initialize_transformation(transformation=transformation,*args,**kwargs) #here select set only to full-HCB. changed afterwards
+        if not isinstance(transformation,typing.Callable):
+            self.transformation = self._initialize_transformation(transformation=transformation,*args,**kwargs) #here select set only to full-HCB. changed afterwards
+        else: self.transformation = transformation
         self.update_select(select,n_orb=self.n_orbitals)
         self.up_then_down = self.transformation.up_then_down
-        self._rdm1 = None
-        self._rdm2 = None
+
     #Select Related Functions
     def update_select(self,select:typing.Union[str,dict,list,tuple],n_orb:int=None):
         '''
@@ -195,9 +198,41 @@ class HybridBase(qc_base):
             except:
                 raise TequilaException(f"Warning, encoding format not recognised: {type(select)}.\n Please choose either a Str, Dict, List or Tuple.")
         self.BOS_MO, self.FER_MO, self.FER_SO= select_to_list(select)
-        self.select = select
+        self._select = select
         self.transformation.update_select(select)
 
+    @classmethod
+    def from_tequila(cls, molecule=None, transformation=None, *args, **kwargs):
+        c = molecule.integral_manager.constant_term
+        h1 = molecule.integral_manager.one_body_integrals
+        h2 = molecule.integral_manager.two_body_integrals
+        S = molecule.integral_manager.overlap_integrals
+        if "active_orbitals" not in kwargs:
+            active_orbitals = [o.idx_total for o in molecule.integral_manager.active_orbitals]
+        else:
+            active_orbitals = kwargs["active_orbitals"]
+            kwargs.pop("active_orbitals")
+        if transformation is None:
+            transformation = molecule.transformation
+        if not hasattr(transformation,'select'):
+            transformation = cls._new_transformation(self=cls,transformation=type(transformation).__name__,n_electrons=molecule.n_electrons,n_orbitals=molecule.n_orbitals)
+        parameters = molecule.parameters
+
+        return cls(
+            nuclear_repulsion=c,
+            one_body_integrals=h1,
+            two_body_integrals=h2,
+            overlap_integrals=S,
+            orbital_coefficients=molecule.integral_manager.orbital_coefficients,
+            active_orbitals=active_orbitals,
+            transformation=transformation,
+            orbital_type=molecule.integral_manager._orbital_type,
+            parameters=parameters,
+            reference_orbitals=molecule.integral_manager.active_space.reference_orbitals,
+            *args,
+            **kwargs,
+        )
+    
     def use_native_orbitals(self, inplace=False, core: list = None, *args, **kwargs):
         """
         Parameters
@@ -362,6 +397,37 @@ class HybridBase(qc_base):
                                                 integral_tresh=self.integral_tresh)
             return result
 
+    @property
+    def select(self):
+        if self._select is not None:
+            return self._select
+        else: return {}
+
+    @select.setter
+    def select(self,select):
+        self.update_select(select=select)
+    
+    @property
+    def condense(self):
+        if self._condense is not None:
+            return self._condense
+        else: return True
+
+    @condense.setter
+    def condense(self,condense):
+        self._condense=condense
+
+    @property
+    def two_qubit(self):
+        if self._two_qubit is not None:
+            return self._two_qubit
+        else: return False
+
+    @two_qubit.setter
+    def two_qubit(self,two_qubit):
+        self._two_qubit=two_qubit
+    
+        
     # Tranformation Related Function
     def _initialize_transformation(self, transformation=None, *args, **kwargs):
         """
@@ -400,6 +466,48 @@ class HybridBase(qc_base):
                     "Unkown Fermion-to-Qubit encoding {}. Try something like: {}".format(transformation,
                                                                                          list(encodings.keys())))
         return transformation
+    
+    def _new_transformation(self, transformation=None,n_electrons:int|None=None,
+                            n_orbitals:int|None=None,select:typing.Union[str,dict,list,tuple]={},
+                            condense:bool=True,two_qubit:bool=False, *args, **kwargs):
+        """
+        Helper Function to initialize the Fermion-to-Qubit Transformation
+        But providing all required parameters as input
+        Parameters
+        ----------
+        transformation: name of the transformation (passed down from __init__
+        args
+        kwargs
+
+        Returns
+        -------
+
+        """
+
+        if transformation is None:
+            transformation = "JordanWigner"
+
+        # filter out arguments to the transformation
+        trafo_args = {k.split("__")[1]: v for k, v in kwargs.items() if
+                      (hasattr(k, "lower") and "transformation__" in k.lower())}
+
+        trafo_args["n_electrons"] = n_electrons
+        trafo_args["n_orbitals"] = n_orbitals
+        trafo_args["select"]= select
+        trafo_args["condense"]=condense
+        trafo_args["two_qubit"] =two_qubit
+        if hasattr(transformation, "upper"):
+            # format to conventions
+            transformation = transformation.replace("_", "").replace("-", "").upper()
+            encodings = known_encodings()
+            if transformation in encodings:
+                transformation = encodings[transformation](**trafo_args)
+            else:
+                raise TequilaException(
+                    "Unkown Fermion-to-Qubit encoding {}. Try something like: {}".format(transformation,
+                                                                                         list(encodings.keys())))
+        return transformation
+    
     # Hamiltonian Related Funcions
     def make_hamiltonian(self)->QubitHamiltonian:
         '''

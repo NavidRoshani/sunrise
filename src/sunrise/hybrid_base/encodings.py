@@ -5,9 +5,9 @@ Adapted to the encoding
 import typing
 from tequila import TequilaException
 from tequila.circuit.circuit import QCircuit
-from tequila.circuit.gates import X, CNOT
+from tequila.circuit.gates import X
 from tequila.hamiltonian.paulis import Sp,Sm,Z
-from tequila.hamiltonian.qubit_hamiltonian import QubitHamiltonian
+from tequila import QubitHamiltonian
 import openfermion
 from tequila.quantumchemistry.encodings import EncodingBase as EB
 from copy import deepcopy
@@ -63,7 +63,7 @@ class JordanWigner(EB):
             into account the mixed condification
             return: qop: the sum of the different operator product multiplied by a prefactor
         """
-        def cre(i: int) -> QubitHamiltonian():
+        def cre(i: int) -> QubitHamiltonian:
             """
             Internal function
             Creates a creation operator on the JW codification acting on the i-th SO
@@ -76,7 +76,7 @@ class JordanWigner(EB):
                 for n in self.FER_SO[:self.FER_SO.index(d[i])]:
                     a *= Z(n)
             return a
-        def anni(i: int) -> QubitHamiltonian():
+        def anni(i: int) -> QubitHamiltonian:
             """
             Internal function
             Creates a annihilation operator on the JW codification acting on the i-th SO
@@ -269,7 +269,6 @@ class JordanWigner(EB):
                     FER_SO.append(pos[2 * i])
                     FER_SO.append(pos[2 * i + 1])
             return FER_SO, pos
-
         if type(select) is dict:
             select = verify_selection_dict(select=select, n_orb=n_orb)
         elif type(select) is str:
