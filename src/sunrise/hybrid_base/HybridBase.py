@@ -14,11 +14,12 @@ from tequila.quantumchemistry import optimize_orbitals
 from tequila.quantumchemistry.qc_base import QuantumChemistryBase as qc_base
 import typing, numpy
 from itertools import product
-from .encodings import known_encodings
-from .FermionicGateImpl import FermionicGateImpl
+from sunrise.hybrid_base.encodings import known_encodings
+from tequila.quantumchemistry.encodings import EncodingBase
+from sunrise.hybrid_base.FermionicGateImpl import FermionicGateImpl
 from openfermion import FermionOperator
 import copy
-from ..hybridization.hybridization import Graph
+from sunrise.hybridization.hybridization import Graph
 class HybridBase(qc_base):
     def __init__(self, parameters: ParametersQC,select: typing.Union[str,dict]={},transformation: typing.Union[str, typing.Callable] = None, active_orbitals: list = None,
                  frozen_orbitals: list = None, orbital_type: str = None,reference_orbitals: list = None, orbitals: list = None, *args, **kwargs):
@@ -92,8 +93,8 @@ class HybridBase(qc_base):
             self.integral_manager.transform_to_native_orbitals()
         #tq init overwriten bcs I need the number of orbitals for select->transformation
         if not isinstance(transformation,typing.Callable):
-            self.transformation = self._initialize_transformation(transformation=transformation,*args,**kwargs) #here select set only to full-HCB. changed afterwards
-        else: self.transformation = transformation
+            self.transformation:EncodingBase = self._initialize_transformation(transformation=transformation,*args,**kwargs) #here select set only to full-HCB. changed afterwards
+        else: self.transformation:EncodingBase = transformation
         self.update_select(select,n_orb=self.n_orbitals)
         self.up_then_down = self.transformation.up_then_down
 
@@ -429,7 +430,7 @@ class HybridBase(qc_base):
     
         
     # Tranformation Related Function
-    def _initialize_transformation(self, transformation=None, *args, **kwargs):
+    def _initialize_transformation(self, transformation=None, *args, **kwargs)->EncodingBase:
         """
         Helper Function to initialize the Fermion-to-Qubit Transformation
         Parameters
@@ -469,7 +470,7 @@ class HybridBase(qc_base):
     
     def _new_transformation(self, transformation=None,n_electrons:int|None=None,
                             n_orbitals:int|None=None,select:typing.Union[str,dict,list,tuple]={},
-                            condense:bool=True,two_qubit:bool=False, *args, **kwargs):
+                            condense:bool=True,two_qubit:bool=False, *args, **kwargs)->EncodingBase:
         """
         Helper Function to initialize the Fermion-to-Qubit Transformation
         But providing all required parameters as input
