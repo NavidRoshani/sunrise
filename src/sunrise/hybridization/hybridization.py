@@ -245,7 +245,7 @@ class Graph:
 
         return None
 
-    def align_orbitals(self, atom, sp, preferred_atoms=[], strip_orbitals=False, try_align=True):
+    def align_orbitals(self, atom:Atom, sp, preferred_atoms=[], strip_orbitals=False, try_align=True):
         """
         Computes a hybridization matrix for a two-shell atom.
 
@@ -339,9 +339,8 @@ class Graph:
         # The orbital matrix now contains the combined s-p hybridization with orientation aligned to the bonds.
         return orbital_matrix
 
-    def apply_hybridization(self, atom, sp='Auto', strip_orbitals=False):
+    def apply_hybridization(self, atom:Atom, sp='Auto', strip_orbitals=False):
         bonded_atoms = self.get_bonds(atom)
-
         if len(bonded_atoms) == 0 or sp == None:
             if atom.name == 'Hydrogen' or atom.name == 'Helium':
                 return np.eye(1)
@@ -384,7 +383,7 @@ class Graph:
         orbital_matrix = self.align_orbitals(atom, sp, preferred_atoms, strip_orbitals=strip_orbitals)
         return orbital_matrix
 
-    def get_orbital_coefficient_matrix(self, strip_orbitals=False):
+    def get_orbital_coefficient_matrix(self, strip_orbitals:bool=False):
         '''
 
         :param strip_orbitals: will skip 1s orbs
@@ -407,11 +406,10 @@ class Graph:
         # print("rows_start ",rows_start)
         for i, atom_bonds in enumerate(bond_data):
             # print('============================')
-            # print(f'Atom {self.atoms[i].symbol}_{i} bonde with')
+            # print(f'Atom {self.atoms[i].symbol}_{i} bonded with')
             for j, neighbor_atom in enumerate(atom_bonds):
                 neighbor_idx = self.atom_indices[neighbor_atom]
-                # print(f'  -Atom {neighbor_atom.symbol}_{neighbor_idx}')
-
+                # print(f'Atom {self.atoms[neighbor_idx].symbol}_{neighbor_idx}')
                 # Only apply transformation once per bond
                 bond_pair = tuple(sorted((i, neighbor_idx)))
                 if bond_pair in applied_bonds:
@@ -428,13 +426,10 @@ class Graph:
                     bond_row_i = rows_start[i]  # Size 1, so only one orbital
                 else:
                     bond_row_i = rows_start[i] + j + (not strip_orbitals) # Bonding row starts at 1 due to skipping 1s
-
                 if neighbor_matrix_size == 1:
                     bond_row_neighbor = rows_start[neighbor_idx]  # Size 1, so only one orbital
                 else:
                     bond_row_neighbor = rows_start[neighbor_idx] + bond_data[neighbor_idx].index(self.atoms[i]) + (not strip_orbitals) # Bonding row starts at 1 due to skipping 1s
-                # print('i position: ',rows_start[i] + j + (not strip_orbitals))
-                # print('j position: ',rows_start[neighbor_idx] + bond_data[neighbor_idx].index(self.atoms[i]) + (not strip_orbitals))
                 # Construct line addition transformation matrix for the bond
                 transformation_matrix = np.eye(size)  # Start with identity matrix
                 transformation_matrix[bond_row_i, bond_row_neighbor] = 1  # 1 for bond alignment
@@ -452,6 +447,10 @@ class Graph:
         del diff
         indices = {i:len(bond_data[i]) for i in range(len(self.atoms)) if len(bond_data[i])<self.atoms[i].max_bonds}  
         for i in indices:
+            # a dictionary is created with {neigh:dist_to_neigh} for all atoms bonded to the current one. 
+            # We only consider them if not considered already (first condicional), 
+            # there are still more atoms to assign (second conditional) 
+            # and the neigh-atom is more than single bonded, since it is already considered above (third conditional) 
             bonded = {self.atom_indices[neighbor_atom]:distances[i,self.atom_indices[neighbor_atom]] for neighbor_atom in bond_data[i] if self.atom_indices[neighbor_atom]> i and len(bond_data[self.atom_indices[neighbor_atom]]) < neighbor_atom.max_bonds and self.get_bond_multiplicity(self.atoms[i],neighbor_atom)>1}
             bonded = dict(sorted(bonded.items(), key=lambda item: item[1]))
             for j in bonded:

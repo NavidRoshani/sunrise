@@ -21,7 +21,7 @@ def plot_MO(molecule:QuantumChemistryBase=None,filename:str=None,orbital:list=No
     if molecule is None:
         raise TequilaException("No Molecule to save orbitals from")
     if filename is None:
-        filename = molecule.parameters.name + molecule.integral_manager._basis_name+molecule.integral_manager._orbital_type
+        filename = molecule.parameters.name +'-'+ molecule.integral_manager._basis_name+'-'+molecule.integral_manager._orbital_type
     if orbital is None:
         orbital = [i.idx_total for i in molecule.integral_manager.orbitals]
     pmol = gto.Mole()
