@@ -1,10 +1,11 @@
 from pyscf import gto, scf
 from pyscf.tools import cubegen
 import tequila as tq
+from tequila.quantumchemistry.qc_base import QuantumChemistryBase
 from tequila import TequilaException
 from sunrise.miscelaneus.bar import giussepe_bar
 
-def plot_MO(molecule:tq.Molecule=None,filename:str=None,orbital:list=None,print_orbital:bool=True,density:bool=False,mep:bool=False):
+def plot_MO(molecule:QuantumChemistryBase=None,filename:str=None,orbital:list=None,print_orbital:bool=True,density:bool=False,mep:bool=False):
     """
     Small function to save the MOs into Cube files
     Parameters
@@ -19,7 +20,7 @@ def plot_MO(molecule:tq.Molecule=None,filename:str=None,orbital:list=None,print_
     if molecule is None:
         raise TequilaException("No Molecule to save orbitals from")
     if filename is None:
-        filename = molecule.parameters.name
+        filename = molecule.parameters.name + molecule.integral_manager._basis_name+molecule.integral_manager._orbital_type
     if orbital is None:
         orbital = [i.idx_total for i in molecule.integral_manager.orbitals]
     pmol = gto.Mole()
@@ -28,9 +29,10 @@ def plot_MO(molecule:tq.Molecule=None,filename:str=None,orbital:list=None,print_
         mf = scf.RHF(pmol).run()
         mf.mo_coeff=molecule.integral_manager.orbital_coefficients
     if print_orbital:
-        for i in orbital:
-            giussepe_bar(i,len(orbital))
-            cubegen.orbital(pmol,  str(i)+"_"+filename+"_MO.cube", molecule.integral_manager.orbital_coefficients[:, i])
+        for i,idx in enumerate(orbital):
+            giussepe_bar(step=i,total_steps=len(orbital))
+            cubegen.orbital(pmol,  str(idx)+"_"+filename+"_MO.cube", molecule.integral_manager.orbital_coefficients[:, idx])
+            giussepe_bar(step=i+1,total_steps=len(orbital))
     if density:
         cubegen.density(pmol, filename + '_density.cube', mf.make_rdm1())
     if mep:

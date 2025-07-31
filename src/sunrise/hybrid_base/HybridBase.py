@@ -366,6 +366,7 @@ class HybridBase(qc_base):
                     active_orbitals=[*to_active.values()],
                     reference_orbitals=[i.idx_total for i in self.integral_manager.reference_orbitals]
                     , frozen_orbitals=core, orbital_coefficients=coeff, overlap_integrals=s)
+                self.integral_manager._orbital_type = 'native'
                 self.update_select(new_select)
                 return self
             else:
@@ -376,6 +377,7 @@ class HybridBase(qc_base):
                     , active_orbitals=[*to_active.values()],
                     reference_orbitals=[i.idx_total for i in self.integral_manager.reference_orbitals]
                     , frozen_orbitals=core, orbital_coefficients=coeff, overlap_integrals=s)
+                integral_manager._orbital_type = 'native'
                 parameters = copy.deepcopy(self.parameters)
                 result = HybridBase(parameters=parameters, integral_manager=integral_manager,
                                                     transformation=self.transformation,

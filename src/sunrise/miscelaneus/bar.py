@@ -3,7 +3,8 @@ import sys
 
 def giussepe_bar(step:int,total_steps:int,toolbar_width:int = 50):
     toolbar_width = total_steps*(toolbar_width//total_steps)
+    step_width = toolbar_width//total_steps
     time.sleep(0.1)
-    i = step*(toolbar_width//total_steps)
-    sys.stdout.write(f"\r\b[{(i-1)*'~'}><(((º>{(40-i-1)*' '}]")
+    i = step*step_width
+    sys.stdout.write(f"\r\b[{i*'~'}><(((º>{(toolbar_width-i)*' '}]")
     sys.stdout.flush()
