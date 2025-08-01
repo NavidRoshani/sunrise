@@ -3,7 +3,7 @@ from pyscf.tools import cubegen
 import tequila as tq
 from tequila.quantumchemistry.qc_base import QuantumChemistryBase
 from tequila import TequilaException
-from sunrise.miscelaneus.bar import giussepe_bar
+from sunrise.miscellaneous.bar import giuseppe_bar
 import sys
 
 def plot_MO(molecule:QuantumChemistryBase=None,filename:str=None,orbital:list=None,print_orbital:bool=True,density:bool=False,mep:bool=False):
@@ -31,9 +31,9 @@ def plot_MO(molecule:QuantumChemistryBase=None,filename:str=None,orbital:list=No
         mf.mo_coeff=molecule.integral_manager.orbital_coefficients
     if print_orbital:
         for i,idx in enumerate(orbital):
-            giussepe_bar(step=i,total_steps=len(orbital))
+            giuseppe_bar(step=i,total_steps=len(orbital))
             cubegen.orbital(pmol,  str(idx)+"_"+filename+"_MO.cube", molecule.integral_manager.orbital_coefficients[:, idx])
-        giussepe_bar(step=i+1,total_steps=len(orbital))
+        giuseppe_bar(step=i+1,total_steps=len(orbital))
         sys.stdout.write('\n')
         sys.stdout.flush()
     if density:
