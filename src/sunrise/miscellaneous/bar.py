@@ -1,7 +1,7 @@
 import time
 import sys
 
-def giussepe_bar(step:int,total_steps:int,toolbar_width:int = 50):
+def giuseppe_bar(step:int,total_steps:int,toolbar_width:int = 50):
     toolbar_width = total_steps*(toolbar_width//total_steps)
     step_width = toolbar_width//total_steps
     time.sleep(0.1)
