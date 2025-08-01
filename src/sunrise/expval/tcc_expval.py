@@ -17,7 +17,7 @@ from typing import Union
 
 class TCCBraket:
     def __init__(self,bra:Union[list]|None=None,ket:Union[list] |None=None,init_state_bra:Union[QCircuit,QubitWaveFunction,Circuit,str]|None=None,
-                 init_state_ket:list[QCircuit,QubitWaveFunction,Circuit,str]|None=None,tcc_kwargs:dict={},
+                 init_state_ket:list[QCircuit,QubitWaveFunction,Circuit,str]|None=None,backend_kwargs:dict={},
                  variables_bra:any=None,variables_ket:any=None,*args,**kwargs):
         if 'reference' in kwargs:
             kwargs['init_state'] = kwargs['reference']
@@ -36,17 +36,17 @@ class TCCBraket:
             self.n_qubits = 2*len(kwargs['int1e'])
         else: self.n_qubits = None
 
-        if 'engine' in tcc_kwargs:
-            engine = tcc_kwargs['engine']
-            tcc_kwargs.pop('engine')
+        if 'engine' in backend_kwargs:
+            engine = backend_kwargs['engine']
+            backend_kwargs.pop('engine')
         else: engine = None
 
-        if 'backend' in  tcc_kwargs:
-            tcc.set_backend(tcc_kwargs['backend'])
-            tcc_kwargs.pop('backend')
-        if 'dtype' in tcc_kwargs:
-            tcc.set_dtype(tcc_kwargs['dtype'])
-            tcc_kwargs.pop('dtype')
+        if 'backend' in  backend_kwargs:
+            tcc.set_backend(backend_kwargs['backend'])
+            backend_kwargs.pop('backend')
+        if 'dtype' in backend_kwargs:
+            tcc.set_dtype(backend_kwargs['dtype'])
+            backend_kwargs.pop('dtype')
         
         if 'circuit' in kwargs:
             circuit = kwargs['circuit']
@@ -217,7 +217,7 @@ class TCCBraket:
                 self.n_qubits = 2*molecule.mo_coeff.shape[0]
                 aslst = [*range(molecule.nao_nr_range)]
                 active_space = (molecule.nelectron,molecule.nao_nr)
-            self.BK = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",aslst=aslst,active_space=active_space,engine=engine,**tcc_kwargs)
+            self.BK = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",aslst=aslst,active_space=active_space,engine=engine,**backend_kwargs)
         elif 'integral_manager' in kwargs and 'parameters' in kwargs:
             integral = kwargs['integral_manager']
             params = kwargs['parameters']
@@ -228,7 +228,7 @@ class TCCBraket:
             aslst = [i.idx_total for i in integral.active_orbitals]
             active_space = (molecule.n_electrons,molecule.n_orbitals)
             molecule = from_tequila(molecule)
-            self.BK = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**tcc_kwargs)
+            self.BK = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**backend_kwargs)
         else:
             int1e = None
             int2e = None
@@ -284,7 +284,7 @@ class TCCBraket:
                 n_elec=kwargs['n_elec']
                 kwargs.pop('n_elec')
             if all([i is not None for i in[int2e,int1e,mo_coeff]]):
-                self.BK = EXPVAL.from_integral(int1e=int1e, int2e=int2e,n_elec= n_elec, e_core=e_core,ovlp=ovlp,mo_coeff=mo_coeff,init_method="zeros",run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,**tcc_kwargs)
+                self.BK = EXPVAL.from_integral(int1e=int1e, int2e=int2e,n_elec= n_elec, e_core=e_core,ovlp=ovlp,mo_coeff=mo_coeff,init_method="zeros",run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,**backend_kwargs)
             else:
                 raise TequilaException('Not enough molecular data provided')
 
