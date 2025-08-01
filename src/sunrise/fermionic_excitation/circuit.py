@@ -13,6 +13,7 @@ from numpy import ndarray
 class FCircuit:
     def __init__(self, operations:typing.Union[list,tuple]|None=None,initial_state:typing.Union[QCircuit,QubitWaveFunction,str,int]|None=None,init_state_variables:dict|None=None):
         self._operations = operations if operations is not None else []
+        self.__initial_state = None
         if initial_state is None or isinstance(initial_state,QubitWaveFunction):
             pass
         elif isinstance(initial_state,QCircuit):
@@ -28,6 +29,8 @@ class FCircuit:
                 raise TequilaException(f'Init_state format not recognized, provided {type(initial_state).__name__}')
         self._initial_state:QubitWaveFunction = initial_state 
         self.verify()
+        if self.n_qubits and self.initial_state is not None:
+            self._initial_state._n_qubits = self.n_qubits
 
     def __add__(self, other):
         initial_state = self._initial_state
@@ -52,6 +55,7 @@ class FCircuit:
                 raise TequilaException(f"Fermionic Circuit + Fermionic Circuit with two different initial states:\n{self._initial_state}, {other._initial_state}")
             self._operations.extend(other._operations)
             self._initial_state = initial_state
+            self._initial_state._n_qubits = self.n_qubits
             return self
         elif isinstance(other,QCircuit):
             other = self.from_Qcircuit(other)
