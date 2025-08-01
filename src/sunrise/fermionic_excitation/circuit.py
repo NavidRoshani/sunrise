@@ -35,7 +35,7 @@ class FCircuit:
         if hasattr(other, "_operations"):
             if self._initial_state is None:
                 initial_state = other._initial_state
-            elif other._initial_state != self._initial_state:
+            elif other._initial_state is not None and other._initial_state != self._initial_state:
                 raise TequilaException(f"FermionicCircuit + FermionicCircuit with two different initial states:\n{self._initial_state}, {other._initial_state}")
             return FCircuit(operations=operations, initial_state=initial_state)
         elif isinstance(other,QCircuit):
@@ -48,7 +48,7 @@ class FCircuit:
         if hasattr(other, "_operations"):
             if self._initial_state is None:
                 initial_state = other._initial_state
-            elif other._initial_state != self._initial_state:
+            elif other._initial_state is not None and other._initial_state != self._initial_state:
                 raise TequilaException(f"Fermionic Circuit + Fermionic Circuit with two different initial states:\n{self._initial_state}, {other._initial_state}")
             self._operations.extend(other._operations)
             self._initial_state = initial_state
@@ -62,7 +62,7 @@ class FCircuit:
     def __str__(self):
         result = "Fermionic Circuit: \n"
         if self._initial_state is not None:
-            result += str(QubitWaveFunction.from_array(self._initial_state)) +'\n'
+            result += str(self._initial_state) +'\n'
         if self._operations is not None:
             for op in self._operations:
                 result += f'Excitation{op[1]} variable = {op[0]}' + "\n"
@@ -85,19 +85,23 @@ class FCircuit:
         for exc in self._operations:
             l.append(exc[1])
         return l
-
+    
+    @property
+    def initial_state(self)->QubitWaveFunction:
+        return self._initial_state
+    
     @property
     def n_qubits(self)->int:
+        ini_num = 0
+        op_num = 0
         if self._initial_state is not None:
-            return self._initial_state.n_qubits
-        elif self._operations is not None:
-            big = 0
+            ini_num= self._initial_state.n_qubits
+        if self._operations is not None:
             for exct in self.excitations:
                 for ex in exct:
-                    big = [max(big,idx) for idx in ex][-1]
-            return big
-        else: return 0
-
+                    op_num = [max(op_num,idx) for idx in ex][-1]
+        return max(ini_num,op_num)
+    
     @classmethod
     def from_Qcircuit(cls,circuit:QCircuit,**kwargs):
         operations = []
@@ -168,7 +172,8 @@ def UX(indices:list, angle:typing.Union[typing.Hashable, numbers.Real, Variable,
 
 
 if __name__ == '__main__':
-    U = FCircuit()
+    ini = tq.gates.X([0,1])
+    U = FCircuit(initial_state=ini)
     U += FCircuit(operations=[("a",[(0,2),(1,3)])])
     U += FCircuit(operations=[("b",[(0,4),(1,5)])])
     U += UC(0,1,"c")

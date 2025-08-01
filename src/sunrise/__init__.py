@@ -9,3 +9,4 @@ from sunrise.fermionic_excitation.orb_rotation import OrbitalRotation
 from sunrise.miscellaneous.giuseppe import giuseppe
 from sunrise.miscellaneous.bar import giussepe_bar
 from sunrise.expval import Braket,show_available_modules,show_supported_modules
+from sunrise.fermionic_excitation.circuit import *
