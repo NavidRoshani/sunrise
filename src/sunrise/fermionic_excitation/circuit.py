@@ -100,6 +100,7 @@ class FCircuit:
             for exct in self.excitations:
                 for ex in exct:
                     op_num = [max(op_num,idx) for idx in ex][-1]
+            op_num += 1
         return max(ini_num,op_num)
     
     @classmethod
