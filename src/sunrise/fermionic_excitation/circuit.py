@@ -1,23 +1,65 @@
-import tequila as tq
-from tequila import QCircuit,QubitWaveFunction,Variable,TequilaException,TequilaWarning
-from tequila.circuit.gates import QubitExcitationImpl
+from __future__ import annotations
 from tequila.circuit._gates_impl import assign_variable
+from tequila.circuit.gates import QubitExcitationImpl
 from tequila.quantumchemistry.chemistry_tools import FermionicGateImpl
-from tequila.objective.objective import FixedVariable
+from tequila.utils.exceptions import TequilaException, TequilaWarning
+from tequila import assign_variable,QCircuit,QubitWaveFunction,simulate
 import typing
-import numbers
-import warnings
-from copy import deepcopy
+import copy
+from collections import defaultdict
 from numpy import ndarray
+import warnings
+import numbers
+from copy import deepcopy
+
 
 class FCircuit:
-    def __init__(self, operations:typing.Union[list,tuple]|None=None,initial_state:typing.Union[QCircuit,QubitWaveFunction,str,int]|None=None,init_state_variables:dict|None=None):
-        self._operations = operations if operations is not None else []
-        self.__initial_state = None
+    """
+    Fundamental class representing an abstract circuit.
+
+    Attributes
+    ----------
+    depth:
+        returns the gate depth of the circuit.
+    gates:
+        returns the gates in the circuit, as a list.
+    moments:
+        returns the circuit as a list of Moment objects.
+    n_qubits:
+        the number of qubits on which the circuit operates.
+    numbering:
+        returns the numbering convention use by tequila circuits.
+    qubits:
+        returns a list of qubits acted upon by the circuit.
+    initial_state:
+        returns QubitWaveFunction which defines initial state. It must be on UPTHENDOWN
+        
+
+    Methods
+    -------
+    make_parameter_map:
+
+
+    """
+
+    def export_to(self, *args, **kwargs):
+        """
+        Export to png, pdf, qpic, tex with qpic backend
+        Convenience: see src/tequila/circuit/qpic.py - export_to for more
+        Parameters
+        """
+        pass #TODO Use our Fermionic Circuit Printer
+
+    @property
+    def initial_state(self)->QubitWaveFunction:
+        return self._initial_state
+
+    @initial_state.setter
+    def initial_state(self,initial_state=None):
         if initial_state is None or isinstance(initial_state,QubitWaveFunction):
             pass
         elif isinstance(initial_state,QCircuit):
-            initial_state = tq.simulate(initial_state,variables=init_state_variables)
+            initial_state = simulate(initial_state,variables={})
         elif isinstance(initial_state,str):
             initial_state = QubitWaveFunction.from_string(initial_state)
         elif isinstance(initial_state,(list,ndarray)):
@@ -27,90 +69,287 @@ class FCircuit:
                 initial_state = QubitWaveFunction.convert_from(val=initial_state,n_qubits=self.n_qubits)
             except:
                 raise TequilaException(f'Init_state format not recognized, provided {type(initial_state).__name__}')
-        self._initial_state:QubitWaveFunction = initial_state 
-        self.verify()
-        if self.n_qubits and self.initial_state is not None:
-            self._initial_state._n_qubits = self.n_qubits
+        if initial_state is not None:
+            initial_state._n_qubits = self.n_qubits
+        self._initial_state = initial_state
 
-    def __add__(self, other):
-        initial_state = self._initial_state
-        operations = self._operations
-        if hasattr(other, "_operations"):
-            if self._initial_state is None:
-                initial_state = other._initial_state
-            elif other._initial_state is not None and other._initial_state != self._initial_state:
-                raise TequilaException(f"FermionicCircuit + FermionicCircuit with two different initial states:\n{self._initial_state}, {other._initial_state}")
-            return FCircuit(operations=operations, initial_state=initial_state)
-        elif isinstance(other,QCircuit):
-            other = self.from_Qcircuit(other)
-            return self.__add__(other)
-        raise TequilaException(f'Fermionic Circuit expected, received {type(other).__name__}')
-    
-    def __iadd__(self,other):
-        initial_state = self._initial_state
-        if hasattr(other, "_operations"):
-            if self._initial_state is None:
-                initial_state = other._initial_state
-            elif other._initial_state is not None and other._initial_state != self._initial_state:
-                raise TequilaException(f"Fermionic Circuit + Fermionic Circuit with two different initial states:\n{self._initial_state}, {other._initial_state}")
-            self._operations.extend(other._operations)
-            self._initial_state = initial_state
-            self._initial_state._n_qubits = self.n_qubits
-            return self
-        elif isinstance(other,QCircuit):
-            other = self.from_Qcircuit(other)
-            return self.__iadd__(other)
+    @property
+    def depth(self):
+        """
+        gate depth of the abstract circuit.
+        Returns
+        -------
+        int: the depth.
+
+        """
+        return len(self.gates)
+
+    @property
+    def gates(self):
+        if self._gates is None:
+            return []
         else:
-            raise TequilaException(f'Fermionic Circuit expected, received {type(other).__name__}')       
+            return self._gates
 
-    def __str__(self):
-        result = "Fermionic Circuit: \n"
+    @gates.setter
+    def gates(self, other):
+        self._gates = list(other)
+
+    @property
+    def qubits(self):
+        accumulate = []
+        for g in self.gates:
+            accumulate += list(g.qubits)
         if self._initial_state is not None:
-            result += str(self._initial_state) +'\n'
-        if self._operations is not None:
-            for op in self._operations:
-                result += f'Excitation{op[1]} variable = {op[0]}' + "\n"
+            accumulate.append([*range(self._initial_state.n_qubits)])
+        return sorted(list(set(accumulate)))
+
+    @property
+    def n_qubits(self):
+        idx = max(self.max_qubit() + 1, self._min_n_qubits)
+        wvf = self._initial_state.n_qubits if self._initial_state is not None else 0
+        return max(idx,wvf)
+
+    @n_qubits.setter
+    def n_qubits(self, other):
+        self._min_n_qubits = other
+        if other < self.max_qubit() + 1:
+            raise TequilaException(
+                "You are trying to set n_qubits to "
+                + str(other)
+                + " but your circuit needs at least: "
+                + str(self.max_qubit() + 1)
+            )
+        return self
+
+    @property
+    def variables(self)->list:
+        v = []
+        for gate in self.gates:
+            v.append(gate.variables)
+        return v
+
+
+    def __init__(self, gates:typing.List[FGateImpl]|None=None, initial_state:typing.Union[QCircuit,QubitWaveFunction,str,int]|None=None, parameter_map=None):
+        """
+        init
+        Parameters
+        ----------
+        gates:
+            (Default value = None)
+            the gates to include in the circuit.
+        parameter_map:
+            (Default value = None)
+            mapping to indicate where in the circuit certain parameters appear.
+        """
+        self._n_qubits = None
+        self._min_n_qubits = 0
+        self._initial_state = None
+        if gates is None:
+            self._gates = []
+        else:
+            self._gates = list(gates)
+
+        if parameter_map is None:
+            self._parameter_map = self.make_parameter_map()
+        else:
+            self._parameter_map = parameter_map
+        
+        self.initial_state = initial_state 
+        self.verify()
+
+    def make_parameter_map(self) -> dict:
+        """
+        Returns
+        -------
+            ParameterMap of the circuit: A dictionary with
+            keys: variables in the circuit
+            values: list of all gates and their positions in the circuit
+            e.g. result[Variable("a")] = [(3, Rx), (5, Ry), ...]
+        """
+        parameter_map = defaultdict(list)
+        for idx, gate in enumerate(self.gates):
+            variables = gate.extract_variables()
+            for variable in variables:
+                parameter_map[variable] += [(idx, gate)]
+
+        return parameter_map
+
+    def is_primitive(self):
+        """
+        Check if this is a single gate wrapped in this structure
+        :return: True if the circuit is just a single gate
+        """
+        return len(self.gates) == 1
+
+    def replace_gates(self, positions: list, circuits: list, replace: list = None):
+        """
+        Notes
+        ----------
+        Replace or insert gates at specific positions into the circuit
+        at different positions (faster than multiple calls to replace_gate)
+
+        Parameters
+        ----------
+        positions: list of int:
+            the positions at which the gates should be added. Always refer to the positions in the original circuit
+        circuits: list or QCircuit:
+            the gates to add at the corresponding positions
+        replace: list of bool: (Default value: None)
+            Default is None which corresponds to all true
+            decide if gates shall be replaced or if the new parts shall be inserted without replacement
+            if replace[i] = true: gate at position [i] will be replaced by gates[i]
+            if replace[i] = false: gates[i] circuit will be inserted at position [i] (beaming before gate previously at position [i])
+        Returns
+        -------
+            new circuit with inserted gates
+        """
+
+        assert len(circuits) == len(positions)
+        if replace is None:
+            replace = [True] * len(circuits)
+        else:
+            assert len(circuits) == len(replace)
+
+        dataset = zip(positions, circuits, replace)
+        dataset = sorted(dataset, key=lambda x: x[0])
+
+        new_gatelist = []
+        last_idx = -1
+
+        for idx, circuit, do_replace in dataset:
+            # failsafe
+            if hasattr(circuit, "gates"):
+                gatelist = circuit.gates
+            elif isinstance(circuit, typing.Iterable):
+                gatelist = circuit
+            else:
+                gatelist = [circuit]
+
+            new_gatelist += self.gates[last_idx + 1 : idx]
+            new_gatelist += gatelist
+            if not do_replace:
+                new_gatelist.append(self.gates[idx])
+
+            last_idx = idx
+
+        new_gatelist += self.gates[last_idx + 1 :]
+
+        result = QCircuit(gates=new_gatelist)
+        result.n_qubits = max(result.n_qubits, self.n_qubits)
         return result
 
-    def verify(self):
-        operations = [[tq.assign_variable(x[0]), tuple(x[1])] for x in self._operations]
-        self._operations = operations
+    def insert_gates(self, positions, gates):
+        """
+        See replace_gates
+        """
+        return self.replace_gates(positions=positions, circuits=gates, replace=[False] * len(gates))
 
-    def extract_variables(self)->list[Variable]:
-        return [op[0] for op in self._operations]
+    def dagger(self):
+        """
+        Returns
+        ------
+        QCircuit:
+            The adjoint of the circuit
+        """
+        result = FCircuit()
+        for g in reversed(self.gates):
+            result += g.dagger()
+        return result
 
-    @property
-    def variables(self)->list[Variable]:
-        return self.extract_variables()
-    
-    @property
-    def excitations(self)->list:
+    def extract_variables(self) -> list:
+        """
+        return a list containing all the variable objects contained in any of the gates within the unitary
+        including those nested within gates themselves.
+
+        Returns
+        -------
+        list:
+            the variables of the circuit
+        """
+        return list(self._parameter_map.keys())
+
+    def extract_indices(self) -> list:
         l = []
-        for exc in self._operations:
-            l.append(exc[1])
+        for gate in self.gates:
+            l.extend(gate.indices)
         return l
-    
-    @property
-    def initial_state(self)->QubitWaveFunction:
-        return self._initial_state
-    
-    @property
-    def n_qubits(self)->int:
-        ini_num = 0
-        op_num = 0
-        if self._initial_state is not None:
-            ini_num= self._initial_state.n_qubits
-        if self._operations is not None:
-            for exct in self.excitations:
-                for ex in exct:
-                    op_num = [max(op_num,idx) for idx in ex][-1]
-            op_num += 1
-        return max(ini_num,op_num)
-    
+
+    def max_qubit(self):
+        """
+        Returns:
+        int:
+             Highest index of qubits in the circuit
+        """
+        qmax = 0
+        for g in self.gates:
+            qmax = max(qmax, g.max_qubit)
+        if self.initial_state is not None:
+            qmax = max(qmax,self.initial_state.n_qubits-1)
+        return qmax
+
+    def __iadd__(self, other):
+        other = self.wrap_gate(gate=other)
+
+        offset = len(self.gates)
+        for k, v in other._parameter_map.items():
+            self._parameter_map[k] += [(x[0] + offset, x[1]) for x in v]
+
+        self._gates += other.gates
+        self._min_n_qubits = max(self._min_n_qubits, other._min_n_qubits)
+        if self._initial_state is None:
+            self._initial_state = other._initial_state
+        elif other._initial_state is not None and other._initial_state != self._initial_state:
+            raise TequilaException(f"FermionicCircuit + FermionicCircuit with two different initial states:\n{self._initial_state}, {other._initial_state}")
+        return self
+
+    def __add__(self, other):
+        other = self.wrap_gate(other)
+        gates = [deepcopy(g) for g in (self.gates + other.gates)]
+        result = FCircuit(gates=gates)
+        result._min_n_qubits = max(self._min_n_qubits, other._min_n_qubits)
+        initial_state = self.initial_state
+        if self._initial_state is None:
+                initial_state = other._initial_state
+        elif other._initial_state is not None and other._initial_state != self._initial_state:
+            raise TequilaException(f"FermionicCircuit + FermionicCircuit with two different initial states:\n{self._initial_state}, {other._initial_state}")
+        result.initial_state = initial_state
+        return result
+
+    def __str__(self):
+        result = "Fermionic circuit: \n"
+        if self.initial_state is not None:
+            result += 'with Initial State: \n'
+            result += str(self.initial_state) +'\n'
+        result += 'with gates:\n'
+        for g in self.gates:
+            result += str(g) + "\n"
+        return result
+
+    def __eq__(self, other):
+        if len(self.gates) != len(other.gates):
+            return False
+        for i, g in enumerate(self.gates):
+            if g != other.gates[i]:
+                return False
+        return True
+
+    def __repr__(self):
+        return self.__str__()
+
+    def reorder(self,norb):
+        u = []
+        for gate in self.gates:
+            u.append(deepcopy(gate).reorder(norb))
+        return FCircuit(gates=u,parameter_map=self._parameter_map,initial_state=self.initial_state)
+     
     @classmethod
     def from_Qcircuit(cls,circuit:QCircuit,**kwargs):
         operations = []
         reference = QCircuit()
+        if 'reordered' in kwargs:
+            reordered = kwargs['reordered']
+        else: reordered = True 
         begining = True
         if 'variables' in kwargs:
             circuit = circuit.map_variables(kwargs['variables'])
@@ -122,16 +361,73 @@ class FCircuit:
                 if isinstance(gate._parameter,numbers.Number):
                     reference += gate
                 elif isinstance(gate,FermionicGateImpl):
-                    begining = False
-                    operations.append[gate.parameter,gate.indices]
+                    begining = False 
+                    operations.append(FermionicExcitation(indices=gate.indices,variables=gate.parameter,reordered=reordered))
                 else:
                     temp = []
                     for i in range(len(gate._target)//2):
                         temp.append((gate._target[2*i],gate._target[2*i+1]))
-                    operations.append([gate.parameter,temp])
+                    operations.append(FermionicExcitation(indices=temp,variables=gate.parameter,reordered=reordered))
             else:
                 raise TequilaException(f'Gate {gate._name}({gate._parameter}) not allowed')
-        return cls(operations=operations,initial_state=reference)
+        if not reordered and len(reference.gates):
+            raise TequilaException('reordered=False only allowed if any initial_state provided due to backend restrictions')
+        return cls(gates=operations,initial_state=reference)
+
+    @staticmethod
+    def wrap_gate(gate: FGateImpl):
+        """
+        take a gate and return a qcircuit containing only that gate.
+        Parameters
+        ----------
+        gate: QGateImpl
+            the gate to wrap in a circuit.
+
+        Returns
+        -------
+        QCircuit:
+            a one gate circuit.
+        """
+        if isinstance(gate, FCircuit):
+            return gate
+        if isinstance(gate, list):
+            return FCircuit(gates=gate)
+        else:
+            return FCircuit(gates=[gate])
+
+    def verify(self) -> bool:
+        """
+        make sure self is built properly and of the correct types.
+        Returns
+        -------
+        bool:
+            whether or not the circuit is properly constructed.
+
+        """
+        for (k,v,) in self._parameter_map.items():
+            test = [self.gates[x[0]] == x[1] for x in v]
+            test += [k in self._gates[x[0]].extract_variables() for x in v]
+        return all(test)
+
+    def map_qubits(self, qubit_map):
+        """
+
+        E.G.  Rx(1)Ry(2) --> Rx(3)Ry(1) with qubit_map = {1:3, 2:1}
+
+        Parameters
+        ----------
+        qubit_map
+            a dictionary which maps old to new qubits
+
+        Returns
+        -------
+        A new circuit with mapped qubits
+        """
+
+        new_gates = [gate.map_qubits(qubit_map) for gate in self.gates]
+        # could speed up by applying qubit_map to parameter_map here
+        # currently its recreated in the init function
+        return FCircuit(gates=new_gates)
 
     def map_variables(self, variables: dict, *args, **kwargs):
         """
@@ -157,35 +453,32 @@ class FCircuit:
                     TequilaWarning,
                 )
 
-        new_operations = [[deepcopy(op[0]).map_variables(variables),op[1]] for op in self._operations]
+        new_gates = [copy.deepcopy(gate).map_variables(variables) for gate in self.gates]
 
-        return FCircuit(operations=new_operations,initial_state=self._initial_state)
+        return FCircuit(gates=new_gates)
 
+    def to_matrix(self, variables=None): #TODO:  Should we?
+        pass 
 
-def make_excitation_gate(indices:list, angle:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable], *args, **kwargs)->FCircuit:
-    return FCircuit([(angle,indices),])
-
-def UR(i:int,j:int,angle:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable])->FCircuit:
-    return FCircuit(operations=[(angle,[(2*i,2*j)]),(angle,[(2*i+1,2*j+1)])])
-
-def UC(i:int,j:int,angle:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable])->FCircuit:
-    U = FCircuit(operations=[(angle,[(2*i,2*j),(2*i+1,2*j+1)]),])
-    return U
-
-def UX(indices:list, angle:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable], *args, **kwargs)->FCircuit:
-    return FCircuit((angle,indices))
-
+    def add_controls(self, control, inpl: typing.Optional[bool] = False) -> typing.Optional[FCircuit]: #TODO
+        pass 
+      
 
 if __name__ == '__main__':
-    ini = tq.gates.X([0,1])
-    U = FCircuit(initial_state=ini)
-    U += FCircuit(operations=[("a",[(0,2),(1,3)])])
-    U += FCircuit(operations=[("b",[(0,4),(1,5)])])
-    U += UC(0,1,"c")
-    U += UR(0,1,"r")
-    U += make_excitation_gate([(2,4),(3,5)],'e')
+    import tequila as tq
+    import sunrise as sun
+    
+    U = sun.gates.FermionicExcitation([(0,2),(1,3)],"a")
+    U.initial_state = tq.gates.X([0,1])
+    U += sun.gates.UC(0,1,"b")
+    U = U + sun.gates.UR(1,2,'c')
     print(U)
-    print(U.excitations)
-    print(U.n_qubits)
-    U = U.map_variables({'e':"eeeeeeee"})
-    print(U)
+    # print(U.make_parameter_map())
+    # print(U.max_qubit())
+    A = U.reorder(4)
+    print(A)
+    print(A.extract_indices())
+    print(A.variables)
+    print(A.initial_state)
+    print(A.extract_variables())
+    print(A.make_parameter_map())
