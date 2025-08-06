@@ -12,6 +12,3 @@ def UR(i:int,j:int, variables:typing.Union[typing.Hashable, numbers.Real, Variab
 
 def UC(i:int,j:int, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None)->FCircuit:
     return FCircuit.wrap_gate(UCImpl(i,j,variables))
-
-def Edges(edges)->FCircuit:
-    return FCircuit.wrap_gate(EdgesImpl(edges))

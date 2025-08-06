@@ -42,6 +42,33 @@ class FCircuit:
 
     """
 
+    def __init__(self, gates:list|None=None, initial_state:typing.Union[QCircuit,QubitWaveFunction,str,int]|None=None, parameter_map=None):
+        """
+        init
+        Parameters
+        ----------
+        gates:
+            (Default value = None)
+            the gates to include in the circuit.
+        parameter_map:
+            (Default value = None)
+            mapping to indicate where in the circuit certain parameters appear.
+        """
+        self._n_qubits = None
+        self._min_n_qubits = 0
+        self._initial_state = None
+        if gates is None:
+            self._gates = []
+        else:
+            self._gates = list(gates)
+
+        if parameter_map is None:
+            self._parameter_map = self.make_parameter_map()
+        else:
+            self._parameter_map = parameter_map
+        self.initial_state = initial_state 
+        self.verify()
+
     def export_to(self, *args, **kwargs):
         """
         Export to png, pdf, qpic, tex with qpic backend
@@ -128,35 +155,6 @@ class FCircuit:
         for gate in self.gates:
             v.append(gate.variables)
         return v
-
-
-    def __init__(self, gates:list|None=None, initial_state:typing.Union[QCircuit,QubitWaveFunction,str,int]|None=None, parameter_map=None):
-        """
-        init
-        Parameters
-        ----------
-        gates:
-            (Default value = None)
-            the gates to include in the circuit.
-        parameter_map:
-            (Default value = None)
-            mapping to indicate where in the circuit certain parameters appear.
-        """
-        self._n_qubits = None
-        self._min_n_qubits = 0
-        self._initial_state = None
-        if gates is None:
-            self._gates = []
-        else:
-            self._gates = list(gates)
-
-        if parameter_map is None:
-            self._parameter_map = self.make_parameter_map()
-        else:
-            self._parameter_map = parameter_map
-        
-        self.initial_state = initial_state 
-        self.verify()
 
     def make_parameter_map(self) -> dict:
         """
@@ -289,7 +287,7 @@ class FCircuit:
         return qmax
 
     def __iadd__(self, other):
-        other = self.wrap_gate(gate=other)
+        other = self.wrap_gate(gate=other.gates)
 
         offset = len(self.gates)
         for k, v in other._parameter_map.items():
@@ -304,7 +302,7 @@ class FCircuit:
         return self
 
     def __add__(self, other):
-        other = self.wrap_gate(other)
+        other = self.wrap_gate(other.gates)
         gates = [deepcopy(g) for g in (self.gates + other.gates)]
         result = FCircuit(gates=gates)
         result._min_n_qubits = max(self._min_n_qubits, other._min_n_qubits)
@@ -340,9 +338,11 @@ class FCircuit:
     def reorder(self,norb):
         u = []
         for gate in self.gates:
-            u.append(deepcopy(gate).reorder(norb))
+            g = deepcopy(gate).reorder(norb)
+            g.reordered = True
+            u.append(g)
         return FCircuit(gates=u,parameter_map=self._parameter_map,initial_state=self.initial_state)
-     
+
     @classmethod
     def from_Qcircuit(cls,circuit:QCircuit,**kwargs):
         operations = []
@@ -374,6 +374,25 @@ class FCircuit:
             raise TequilaException('reordered=False only allowed if any initial_state provided due to backend restrictions')
         return cls(gates=operations,initial_state=reference)
 
+    @classmethod
+    def from_edges(cls,edges:typing.Union[list,tuple],label=None,**kwargs):
+        operations = FCircuit()
+        if 'n_orb' in kwargs:
+            n_orb = kwargs['n_orb']
+            include_reference = True
+            reference = QCircuit()
+        else: 
+            include_reference = False
+            reference = None
+        for edge in edges:
+            for i in range(len(edge)-1):
+                if include_reference:
+                    reference += tq.gates.X([edge[0],edge[0]+n_orb])
+                    operations += sunrise.gates.FermionicExcitation(indices=[(edge[i],edge[i+1]),(edge[i]+n_orb,edge[i+1]+n_orb)],variables=tq.Variable(((edge[i],edge[i+1]),'D',label)),reordered=True)
+                else:
+                    operations += sunrise.gates.FermionicExcitation(indices=[(2*edge[i],2*edge[i+1]),(2*edge[i]+1,2*edge[i+1]+1)],variables=tq.Variable(((edge[i],edge[i+1]),'D',label)),reordered=False)
+        return cls(gates=operations._gates,initial_state=reference)
+
     @staticmethod
     def wrap_gate(gate):
         """
@@ -404,6 +423,8 @@ class FCircuit:
             whether or not the circuit is properly constructed.
 
         """
+        if not len(self._gates) is None and self.initial_state is None:
+            return True
         for (k,v,) in self._parameter_map.items():
             test = [self.gates[x[0]] == x[1] for x in v]
             test += [k in self._gates[x[0]].extract_variables() for x in v]
@@ -463,6 +484,8 @@ class FCircuit:
     def add_controls(self, control, inpl: typing.Optional[bool] = False) -> typing.Optional[FCircuit]: #TODO
         pass 
       
+    def to_circuit(self,molecule) -> QCircuit: #TODO
+        pass
 
 if __name__ == '__main__':
     import tequila as tq
@@ -473,8 +496,8 @@ if __name__ == '__main__':
     U += sun.gates.UC(0,1,"b")
     U = U + sun.gates.UR(1,2,'c')
     print(U)
-    # print(U.make_parameter_map())
-    # print(U.max_qubit())
+    print(U.make_parameter_map())
+    print(U.max_qubit())
     A = U.reorder(4)
     print(A)
     print(A.extract_indices())
@@ -483,3 +506,10 @@ if __name__ == '__main__':
     print(A.extract_variables())
     print(A.make_parameter_map())
     print(A.initial_state._state)
+
+    B = FCircuit.from_edges([(0,1),(2,3)])
+    print(B.extract_variables())
+    print(B.extract_indices())
+    print(B)
+    C = FCircuit.from_edges([(0,1),(2,3)],n_orb=4)
+    print(C)

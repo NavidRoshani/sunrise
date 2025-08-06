@@ -117,11 +117,3 @@ class UCImpl(FGateImpl):
     def __init__(self,i,j, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None):
         super().__init__([[(2*i,2*j),(2*i+1,2*j+1)]], variables, False)
         self._name = 'UC'
-
-class EdgesImpl(FGateImpl):
-    def __init__(self, edges):
-        indices = [[[(2*edge[0],2*edge[1]),(2*edge[0]+1,2*edge[1]+1)] for edge in edges]]
-        variables = [str(edge) for edge in edges]
-        super().__init__(indices, variables, False)
-        self._name = 'Edges'
-  
