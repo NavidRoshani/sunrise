@@ -11,8 +11,7 @@ from numpy import ndarray
 import warnings
 import numbers
 from copy import deepcopy
-from sunrise.fermionic_excitation.gates import FermionicExcitation
-from sunrise.fermionic_excitation.fgateimpl import FGateImpl
+import sunrise
 
 class FCircuit:
     """
@@ -131,7 +130,7 @@ class FCircuit:
         return v
 
 
-    def __init__(self, gates:typing.List[FGateImpl]|None=None, initial_state:typing.Union[QCircuit,QubitWaveFunction,str,int]|None=None, parameter_map=None):
+    def __init__(self, gates:list|None=None, initial_state:typing.Union[QCircuit,QubitWaveFunction,str,int]|None=None, parameter_map=None):
         """
         init
         Parameters
@@ -363,12 +362,12 @@ class FCircuit:
                     reference += gate
                 elif isinstance(gate,FermionicGateImpl):
                     begining = False 
-                    operations.append(FermionicExcitation(indices=gate.indices,variables=gate.parameter,reordered=reordered))
+                    operations.append(sunrise.gates.FermionicExcitation(indices=gate.indices,variables=gate.parameter,reordered=reordered))
                 else:
                     temp = []
                     for i in range(len(gate._target)//2):
                         temp.append((gate._target[2*i],gate._target[2*i+1]))
-                    operations.append(FermionicExcitation(indices=temp,variables=gate.parameter,reordered=reordered))
+                    operations.append(sunrise.gates.FermionicExcitation(indices=temp,variables=gate.parameter,reordered=reordered))
             else:
                 raise TequilaException(f'Gate {gate._name}({gate._parameter}) not allowed')
         if not reordered and len(reference.gates):
@@ -376,7 +375,7 @@ class FCircuit:
         return cls(gates=operations,initial_state=reference)
 
     @staticmethod
-    def wrap_gate(gate: FGateImpl):
+    def wrap_gate(gate):
         """
         take a gate and return a qcircuit containing only that gate.
         Parameters
@@ -483,3 +482,4 @@ if __name__ == '__main__':
     print(A.initial_state)
     print(A.extract_variables())
     print(A.make_parameter_map())
+    print(A.initial_state._state)
