@@ -1,8 +1,6 @@
-from tequila import QCircuit,TequilaException
 from sunrise.expval.tequila_expval import TequilaBraket
-from tequila import TequilaException
 
-SUPPORTED_FERMIONIC_BACKENDS = ["tequila", 'fqe', "tcc"]
+SUPPORTED_FERMIONIC_BACKENDS = ["tequila", "fqe", "tcc"]
 INSTALLED_FERMIONIC_BACKENDS = {}#{"tequila": TequilaBraket}
 
 try:
@@ -44,7 +42,7 @@ def Braket(backend:str='tequila',*args,**kwargs)->TequilaBraket:
         electronic integral information
     (Optional)n_qubits
         number of circuit's qubits. If not provided, assumed from molecular information
-    bra/ket/circuit/indices: FCircuit
+    bra/ket/circuit: FCircuit
         Fermionic Circuit containing the excitations, variables and initial state.
     (Optional) backend_kwargs:dict
         engine
@@ -55,18 +53,5 @@ def Braket(backend:str='tequila',*args,**kwargs)->TequilaBraket:
             see tcc.set_backend
         else: kwargs provided to the UCC object initialization
     '''
-    if 'mol' in kwargs:
-        kwargs['molecule'] = kwargs['mol']
-        kwargs.pop('mol')
-    if 'circuit' in kwargs:
-        if (U is not None) and (indices is not None):
-            raise TequilaException("More than one Circuit Provided?")
-        else:
-            temp = kwargs['circuit']
-            kwargs.pop('circuit')
-            if isinstance(temp,QCircuit):
-                U = temp
-            else:
-                indices = temp
     #any kwargs and circuit form should be managed inside each class
     return INSTALLED_FERMIONIC_BACKENDS[backend.lower()](*args,**kwargs) 

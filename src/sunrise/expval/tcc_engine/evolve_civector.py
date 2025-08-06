@@ -1,4 +1,3 @@
-from lib2to3.fixer_util import Number
 from tencirchem.static.evolve_civector import *
 from tencirchem.static.evolve_civector import _get_gradients_civector,_get_gradients_civector_nocache
 from tequila import simulate,Objective,Variable,grad,QTensor

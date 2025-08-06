@@ -1,6 +1,8 @@
 from __future__ import annotations
 from tequila.circuit._gates_impl import assign_variable
 from tequila.circuit.gates import QubitExcitationImpl
+from tequila.circuit.gates import X
+from tequila import Variable
 from tequila.quantumchemistry.chemistry_tools import FermionicGateImpl
 from tequila.utils.exceptions import TequilaException, TequilaWarning
 from tequila import assign_variable,QCircuit,QubitWaveFunction,simulate
@@ -157,7 +159,7 @@ class FCircuit:
     def variables(self)->list:
         v = []
         for gate in self.gates:
-            v.append(gate.variables)
+            v.extend(gate.variables)
         return v
 
     def make_parameter_map(self) -> dict:
@@ -363,7 +365,7 @@ class FCircuit:
 
     @classmethod
     def from_Qcircuit(cls,circuit:QCircuit,**kwargs):
-        operations = []
+        operations = FCircuit()
         reference = QCircuit()
         if 'reordered' in kwargs:
             reordered = kwargs['reordered']
@@ -380,23 +382,22 @@ class FCircuit:
                     reference += gate
                 elif isinstance(gate,FermionicGateImpl):
                     begining = False 
-                    operations.append(sunrise.gates.FermionicExcitation(indices=gate.indices,variables=gate.parameter,reordered=reordered))
+                    operations += sunrise.gates.FermionicExcitation(indices=gate.indices,variables=gate.parameter,reordered=reordered)
                 else:
                     temp = []
                     for i in range(len(gate._target)//2):
                         temp.append((gate._target[2*i],gate._target[2*i+1]))
-                    operations.append(sunrise.gates.FermionicExcitation(indices=temp,variables=gate.parameter,reordered=reordered))
+                    operations += sunrise.gates.FermionicExcitation(indices=temp,variables=gate.parameter,reordered=reordered)
             else:
                 raise TequilaException(f'Gate {gate._name}({gate._parameter}) not allowed')
         if not reordered and len(reference.gates):
             raise TequilaException('reordered=False only allowed if any initial_state provided due to backend restrictions')
-        return cls(gates=operations,initial_state=reference)
+        return cls(gates=operations._gates,initial_state=reference)
 
     @classmethod
-    def from_edges(cls,edges:typing.Union[list,tuple],label=None,**kwargs):
+    def from_edges(cls,edges:typing.Union[list,tuple],label=None,n_orb:int|None=None):
         operations = FCircuit()
-        if 'n_orb' in kwargs:
-            n_orb = kwargs['n_orb']
+        if n_orb is not None:
             include_reference = True
             reference = QCircuit()
         else: 
@@ -405,10 +406,10 @@ class FCircuit:
         for edge in edges:
             for i in range(len(edge)-1):
                 if include_reference:
-                    reference += tq.gates.X([edge[0],edge[0]+n_orb])
-                    operations += sunrise.gates.FermionicExcitation(indices=[(edge[i],edge[i+1]),(edge[i]+n_orb,edge[i+1]+n_orb)],variables=tq.Variable(((edge[i],edge[i+1]),'D',label)),reordered=True)
+                    reference += X([edge[0],edge[0]+n_orb])
+                    operations += sunrise.gates.FermionicExcitation(indices=[(edge[i],edge[i+1]),(edge[i]+n_orb,edge[i+1]+n_orb)],variables=Variable(((edge[i],edge[i+1]),'D',label)),reordered=True)
                 else:
-                    operations += sunrise.gates.FermionicExcitation(indices=[(2*edge[i],2*edge[i+1]),(2*edge[i]+1,2*edge[i+1]+1)],variables=tq.Variable(((edge[i],edge[i+1]),'D',label)),reordered=False)
+                    operations += sunrise.gates.FermionicExcitation(indices=[(2*edge[i],2*edge[i+1]),(2*edge[i]+1,2*edge[i+1]+1)],variables=Variable(((edge[i],edge[i+1]),'D',label)),reordered=False)
         return cls(gates=operations._gates,initial_state=reference)
 
     @staticmethod
@@ -515,15 +516,15 @@ if __name__ == '__main__':
     U = U + sun.gates.UR(1,2,'c')
     U += sun.gates.FermionicExcitation([(1,2)],'d',reordered=True)
     print(U)
-    print(U.make_parameter_map())
-    print(U.max_qubit())
+    # print(U.make_parameter_map())
+    # print(U.max_qubit())
     A = U.to_upthendown(4)
     print(A)
-    print(A.extract_indices())
+    # print(A.extract_indices())
     print(A.variables)
-    print(A.initial_state)
+    # print(A.initial_state)
     print(A.extract_variables())
-    print(A.make_parameter_map())
+    # print(A.make_parameter_map())
     E = A.to_udud(4)
     print(E)
     exit()

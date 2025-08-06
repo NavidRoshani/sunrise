@@ -1,13 +1,13 @@
 import tencirchem as tcc
 from sunrise.expval.tcc_engine.braket import EXPVAL
-from tequila import QCircuit,TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective
+from ..fermionic_excitation.circuit import FCircuit
+from tequila import TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective
 from tequila.objective.objective import Variables
 from tequila.quantumchemistry.chemistry_tools import NBodyTensor
 from tequila.quantumchemistry import qc_base
 from tequila.utils.bitstrings import BitString
-from tensorcircuit import Circuit
 from numbers import Number
-from numpy import array,ceil,pi
+from numpy import array,ceil,argwhere
 from pyscf.gto import Mole
 from sunrise.expval.pyscf_molecule import from_tequila
 from copy import deepcopy
@@ -16,31 +16,12 @@ from typing import Union
 #assumed to be installed pyscf since dependency for sunrise and tcc
 
 class TCCBraket:
-    def __init__(self,bra:Union[list]|None=None,ket:Union[list] |None=None,init_state_bra:Union[QCircuit,QubitWaveFunction,Circuit,str]|None=None,
-                 init_state_ket:list[QCircuit,QubitWaveFunction,Circuit,str]|None=None,backend_kwargs:dict={},
-                 variables_bra:any=None,variables_ket:any=None,*args,**kwargs):
-        if 'reference' in kwargs:
-            kwargs['init_state'] = kwargs['reference']
-            kwargs.pop('reference') 
-        if 'n_qubits' in kwargs:
-            self.n_qubits = kwargs['n_qubits']
-            kwargs.pop('n_qubits')
-        elif 'molecule' in kwargs and kwargs['molecule'] is not None:
-            if isinstance(kwargs['molecule'],qc_base.QuantumChemistryBase):
-                self.n_qubits = 2*kwargs['molecule'].n_orbitals
-            elif isinstance(kwargs['molecule'],Mole):
-                self.n_qubits = 2*kwargs['molecule'].mo_coeff.shape[0]
-        elif 'integral_manager' in kwargs:
-            self.n_qubits = len(kwargs['integral_manager'].active_orbitals)
-        elif 'int1e' in kwargs:
-            self.n_qubits = 2*len(kwargs['int1e'])
-        else: self.n_qubits = None
+    def __init__(self,bra:FCircuit|None=None,ket:FCircuit|None=None,backend_kwargs:dict|None={},*args,**kwargs):
 
         if 'engine' in backend_kwargs:
             engine = backend_kwargs['engine']
             backend_kwargs.pop('engine')
         else: engine = None
-
         if 'backend' in  backend_kwargs:
             tcc.set_backend(backend_kwargs['backend'])
             backend_kwargs.pop('backend')
@@ -55,157 +36,8 @@ class TCCBraket:
                 raise TequilaException('Two circuits provided?')
             else:
                 ket = circuit
-        if 'indices' in kwargs:
-            indices = kwargs['indices']
-            kwargs.pop('indices')
-            if indices is not None: 
-                if ket is not None:
-                    raise TequilaException('Two circuits provided?')
-                else:
-                    ket = indices
-        if ket is not None and isinstance(ket, (list, tuple)):
-            if isinstance(ket[0], Number):
-                ket = [[ket, ], ]
-            elif isinstance(ket[0][0], Number):
-                ket = [ket, ]
-        if bra is not None:
-            if isinstance(bra, (list, tuple)):
-                if isinstance(bra[0], Number):
-                    bra = [[bra, ], ]
-                elif isinstance(bra[0][0], Number):
-                    bra = [bra, ]
-        
-        if 'init_state' in kwargs:
-            init_state  = kwargs['init_state']
-            kwargs.pop('init_state')
-            if isinstance(init_state,QCircuit):
-                if self.n_qubits is not None:
-                    init_state.n_qubits = self.n_qubits
-                if 'init_state_variables' in kwargs:
-                    ivariables = kwargs['init_state_variables']
-                    kwargs.pop('init_state_variables')
-                else: ivariables = {}
-                res = simulate(init_state,variables=ivariables)
-                init_state = init_state_from_wavefunction(res)
-                n_elec = init_state[0][0].count('1')
-            elif isinstance(init_state,str):
-                wvf = QubitWaveFunction.from_string(init_state)
-                if self.n_qubits is not None:
-                    wvf.n_qubits = self.n_qubits
-                init_state = init_state_from_wavefunction()
-                n_elec = init_state[0][0].count('1')
-            elif isinstance(init_state,QubitWaveFunction):
-                if self.n_qubits is not None:
-                    init_state._n_qubits = self.n_qubits                    
-                init_state = init_state_from_wavefunction(init_state)
-                n_elec = init_state[0][0].count('1')
-            elif isinstance(init_state,Circuit):
-                if self.n_qubits is not None:
-                    init_state._nqubits = self.n_qubits
-                init_state = init_state.state()
-                n_elec = [bin(i) for i in range(len(init_state)) if init_state[i].real>1.e-6][0].count('1')
-            elif isinstance(init_state,{list,array}):
-                n_elec = [bin(i) for i in range(len(init_state)) if init_state[i].real>1.e-6][0].count('1')
-            else:
-                try:
-                    init_state = init_state_from_wavefunction(QubitWaveFunction.convert_from(val=init_state,n_qubits=self.n_qubits))
-                    n_elec = init_state[0][0].count('1')
-                except:
-                    raise TequilaException(f'Init_state format not recognized, provided {type(init_state).__name__}')
-        else:
-            n_elec = None
-            init_state =None
-        if init_state_bra is not None:
-            if isinstance(init_state_bra,QCircuit):
-                if self.n_qubits is not None:
-                    init_state_bra.n_qubits = self.n_qubits
-                if 'init_state_bra_variables' in kwargs:
-                    ivariables = kwargs['init_state_bra_variables']
-                    kwargs.pop('init_state_bra_variables')
-                else: ivariables = {}
-                init_state_bra = init_state_from_wavefunction(simulate(init_state_bra,variables=ivariables))
-                n_e_bra = init_state_bra[0][0].count('1')
-            elif isinstance(init_state_bra,str):
-                wvf = QubitWaveFunction.from_string(init_state_bra)
-                if self.n_qubits is not None:
-                    wvf._n_qubits = self.n_qubits
-                init_state_bra = init_state_from_wavefunction(wvf)
-                n_e_bra = init_state_bra[0][0].count('1')
-            elif isinstance(init_state_bra,QubitWaveFunction):
-                if self.n_qubits is not None:
-                    init_state_bra._n_qubits = self.n_qubits
-                init_state_bra = init_state_from_wavefunction(init_state_bra)
-                n_e_bra = init_state_bra[0][0].count('1')
-            elif isinstance(init_state_bra,Circuit):
-                init_state_bra._nqubits = self.n_qubits
-                init_state_bra = init_state_bra.state()
-                n_e_bra = [bin(i) for i in range(len(init_state_bra)) if init_state_bra[i].real>1.e-6][0].count('1')
-            elif isinstance(init_state_bra,(list,array)):
-                n_e_bra = [bin(i) for i in range(len(init_state_bra)) if init_state_bra[i].real>1.e-6][0].count('1')
-            else:
-                try:
-                    init_state_bra = init_state_from_wavefunction(QubitWaveFunction.convert_from(val=init_state_bra,n_qubits=self.n_qubits))
-                    n_e_bra = init_state_bra[0][0].count('1')
-                except:
-                    raise TequilaException(f'Init_state_bra format not recognized, provided {type(init_state_bra).__name__}')
-        else:
-            n_e_bra = None
-        if init_state_ket is not None:
-            if isinstance(init_state_ket,QCircuit):
-                if self.n_qubits is not None:
-                    init_state_ket.n_qubits = self.n_qubits
-                if 'init_state_ket_variables' in kwargs:
-                    ivariables = kwargs['init_state_ket_variables']
-                    kwargs.pop('init_state_ket_variables')
-                else: ivariables = {}
-                init_state_ket = init_state_from_wavefunction(simulate(init_state_ket,variables=ivariables))
-                n_e_ket = init_state_ket[0][0].count('1')
-            elif isinstance(init_state_ket,str):
-                wfv = QubitWaveFunction.from_string(init_state_ket)
-                if self.n_qubits is not None:
-                    wfv._n_qubits = self.n_qubits
-                init_state_ket = init_state_from_wavefunction(QubitWaveFunction.from_string(init_state_ket))
-                n_e_ket = init_state_ket[0][0].count('1')
-            elif isinstance(init_state_ket,QubitWaveFunction):
-                if self.n_qubits is not None:
-                    init_state_ket._n_qubits = self.n_qubits
-                init_state_ket = init_state_from_wavefunction(init_state_ket)
-                n_e_ket = init_state_ket[0][0].count('1')
-            elif isinstance(init_state_ket,Circuit):
-                init_state_ket._nqubits = self.n_qubits
-                init_state_ket = init_state_ket.state()
-                n_e_ket = [bin(i) for i in range(len(init_state_ket)) if init_state_ket[i].real>1.e-6][0].count('1')
-            elif isinstance(init_state_ket,(list,array)):
-                n_e_ket = [bin(i) for i in range(len(init_state_ket)) if init_state_ket[i].real>1.e-6][0].count('1')
-            else:
-                try:
-                    init_state_ket = init_state_from_wavefunction(QubitWaveFunction.convert_from(val=init_state_ket,n_qubits=self.n_qubits))
-                    n_e_ket = init_state_ket[0][0].count('1')
-                except:
-                    raise TequilaException(f'Init_state_ket format not recognized, provided {type(init_state_ket).__name__}')
-        else: n_e_ket = None
-        if all(i is None for i in [n_elec,n_e_bra,n_e_ket]):
-            if 'n_elec' in kwargs:
-                n_elec = kwargs['n_elec']
-                kwargs.pop['n_elec']
-            elif 'n_electrons' in kwargs:
-                n_elec = kwargs['n_electrons']
-                kwargs.pop('n_electrons')
-            elif 'molecule' in kwargs:
-                if isinstance(kwargs['molecule'],qc_base.QuantumChemistryBase):     
-                    n_elec = kwargs['molecule'].n_electrons
-                else:
-                    n_elec = kwargs['molecule'].nelectron
-            elif 'parameters' in kwargs:
-                n_elec = kwargs['parameters'].n_electrons
-            else:
-                raise TequilaException("No way of defining the amount of electrons provided")
-        if n_elec is None:   
-            if n_e_bra is not None:
-                assert n_e_bra == n_e_ket
-            n_elec = n_e_ket
 
-        run_hf = (init_state is None) or (init_state_bra is None) or (init_state_ket is None)   
+        run_hf = (bra is None or bra.initial_state is None) and (ket is None or ket.initial_state is None)   
         if 'molecule' in kwargs and kwargs['molecule']:
             molecule = kwargs['molecule']
             kwargs.pop('molecule')
@@ -214,21 +46,19 @@ class TCCBraket:
                 active_space = (molecule.n_electrons,molecule.n_orbitals)
                 molecule = from_tequila(molecule)
             elif isinstance(molecule,Mole):
-                self.n_qubits = 2*molecule.mo_coeff.shape[0]
                 aslst = [*range(molecule.nao_nr_range)]
                 active_space = (molecule.nelectron,molecule.nao_nr)
-            self.BK = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",aslst=aslst,active_space=active_space,engine=engine,**backend_kwargs)
+            self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",aslst=aslst,active_space=active_space,engine=engine,**backend_kwargs)
         elif 'integral_manager' in kwargs and 'parameters' in kwargs:
             integral = kwargs['integral_manager']
             params = kwargs['parameters']
             kwargs.pop('integral_manager')
             kwargs.pop('parameters')
             molecule = Molecule(parameters=params,integral_manager=integral)
-            self.n_qubits = 2*molecule.n_orbitals
             aslst = [i.idx_total for i in integral.active_orbitals]
             active_space = (molecule.n_electrons,molecule.n_orbitals)
             molecule = from_tequila(molecule)
-            self.BK = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**backend_kwargs)
+            self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, aslst=aslst,active_space=active_space,run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**backend_kwargs)
         else:
             int1e = None
             int2e = None
@@ -283,69 +113,51 @@ class TCCBraket:
             if 'n_elec' in kwargs:
                 n_elec=kwargs['n_elec']
                 kwargs.pop('n_elec')
+            elif 'n_electrons' in kwargs: 
+                n_elec=kwargs['n_elec']
+                kwargs.pop('n_elec')
+            elif ket is not None and ket.init_state is not None:
+                if isinstance(ket.initial_state._state,dict):
+                    n_elec = bin([*ket.initial_state._state.keys()][0])[2:].count('1')
+                else:
+                    n_elec = bin(argwhere(ket.init_state._state>1.e-6)[0][0])[2:].count('1')
+            else:
+                raise TequilaException("No manner of defining the amount of electrons provided")
             if all([i is not None for i in[int2e,int1e,mo_coeff]]):
-                self.BK = EXPVAL.from_integral(int1e=int1e, int2e=int2e,n_elec= n_elec, e_core=e_core,ovlp=ovlp,mo_coeff=mo_coeff,init_method="zeros",run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,**backend_kwargs)
+                self.BK:EXPVAL = EXPVAL.from_integral(int1e=int1e, int2e=int2e,n_elec= n_elec, e_core=e_core,ovlp=ovlp,mo_coeff=mo_coeff,init_method="zeros",run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,**backend_kwargs)
             else:
                 raise TequilaException('Not enough molecular data provided')
 
-        if init_state_bra is not None: #init state initialization splitted bcs we need BK structe, but we get info to initialize BK from init state
-            if isinstance(init_state_bra[0],Number):
-                self.BK.init_state_bra = init_state_bra
-            else:
-                for i in init_state_bra:
-                    i[0] = self.BK.get_addr(i[0])
-                init = [0] * self.BK.civector_size
-                for i in init_state_bra:
-                    init[i[0]] = i[1]
-                self.init_state_bra = init
-        if init_state_ket is not None: #TCC builds HF if None provided
-            if isinstance(init_state_ket[0],Number):
-                self.init_state_ket = init_state_ket 
-            else:
-                for i in init_state_ket:
-                    i[0] = self.BK.get_addr(i[0])
-                init = [0] * self.BK.civector_size
-                for i in init_state_ket:
-                    init[i[0]] = i[1]
-                self.init_state_ket = init
-        if init_state is not None: #TCC builds HF if None provided
-            if isinstance(init_state[0],Number):
-                self.init_state_ket = init_state_ket 
-            else:
-                for i in init_state:
-                    i[0] = self.BK.get_addr(i[0])
-                init = [0] * self.BK.civector_size
-                for i in init_state:
-                    init[i[0]] = i[1]
-                self.init_state_ket = init
+        if bra is not None and bra.initial_state is not None: #init state initialization splitted bcs we need BK structe, but we get info to initialize BK from init state
+            ini_bra = init_state_from_wavefunction(bra.initial_state)
+            for i in ini_bra:
+                i[0] = self.BK.get_addr(i[0])
+            init = [0] * self.BK.civector_size
+            for i in ini_bra:
+                init[i[0]] = i[1]
+            self.init_state_bra = init
+        if ket is not None and ket.initial_state is not None: #TCC builds HF if None provided
+            ini_ket = init_state_from_wavefunction(ket.initial_state)
+            for i in ini_ket:
+                i[0] = self.BK.get_addr(i[0])
+            init = [0] * self.BK.civector_size
+            for i in ini_ket:
+                init[i[0]] = i[1]
+            self.init_state_ket = init
         
-        if 'variables' in kwargs:
-            v = kwargs['variables']
-            kwargs.pop('variables')
-            if variables_ket is None:
-                self.variables_ket =v
-            elif variables_bra is not None:
-                raise TequilaException("Too many variables, provided Variables, variables_ket and variables_bra?")
-            else: self.variables_bra = v
 
-        if variables_ket is not None:
-            self.variables_ket = variables_ket
-        if variables_bra is not None:
-            self.variables_bra = variables_bra
+
+        if ket is not None and ket.variables is not None:
+            self.variables_ket = ket.variables
+        if bra is not None and bra.variables is not None:
+            self.variables_bra = bra.variables
 
         if ket is not None:
-            self.ket = ket
+            ket = ket.to_upthendown(len(self.BK.aslst))
+            self.ket = ket.extract_indices()
         if bra is not None:
-            self.bra = bra
-        if 'init_guess' in kwargs:
-            self.init_guess = kwargs['init_guess']
-            kwargs.pop('init_guess')
-        if 'init_guess_ket' in kwargs:
-            self.init_guess_ket = kwargs['init_guess_ket']
-            kwargs.pop('init_guess_ket')
-        if 'init_guess_bra' in kwargs:
-            self.init_guess_bra = kwargs['init_guess_bra']
-            kwargs.pop('init_guess_bra')
+            bra = bra.to_upthendown(len(self.BK.aslst))
+            self.bra = bra.extract_indices() 
         self.opt_res = None
         
     def minimize(self,**kwargs)->float:
@@ -389,7 +201,6 @@ class TCCBraket:
         '''
         bra,params_bra,_ = translate_indices(bra)
         if self.variables_bra is None:
-
             self.variables_bra = params_bra
         self.BK.ex_ops_bra = bra
     
