@@ -7,17 +7,22 @@ from tequila import TequilaException
 from copy import deepcopy
 
 class FGateImpl:
-    def __init__(self,indices:typing.Union[list,tuple]|None=None,variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]=None,reorederd:bool=False):
-        self.reoredered=reorederd
+    def __init__(self,indices:typing.Union[list,tuple]|None=None,variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]=None,reordered:bool=False):
+        self.reordered=reordered
         self._indices = indices
         self._variables=variables
         self._name = 'GenericFermionic'
         self.verify()
         return FCircuit.wrap_gate(gate=self)
 
-    def reorder(self,norb:int)->typing.Union[tuple,list]:
-        if not self.reoredered:
+    def to_upthendown(self,norb:int):
+        if not self.reordered:
             self._indices = [[(idx[0]//2+(idx[0]%2)*norb,idx[1]//2+(idx[1]%2)*norb) for idx in gate] for gate in self._indices]
+        return self
+    
+    def to_udud(self,norb:int):
+        if self.reordered:
+            self._indices = [[(2*(idx[0]%norb)+(idx[0]>=norb),2*(idx[1]%norb)+(idx[1]>=norb)) for idx in gate] for gate in self._indices]
         return self
     
     def __str__(self):

@@ -83,6 +83,9 @@ class FCircuit:
 
     @initial_state.setter
     def initial_state(self,initial_state=None):
+        '''
+        IT MUST BE UPTHENDOWN
+        '''
         if initial_state is None or isinstance(initial_state,QubitWaveFunction):
             pass
         elif isinstance(initial_state,QCircuit):
@@ -97,6 +100,7 @@ class FCircuit:
             except:
                 raise TequilaException(f'Init_state format not recognized, provided {type(initial_state).__name__}')
         if initial_state is not None:
+            self.n_qubits = max(self.n_qubits,initial_state.n_qubits)
             initial_state._n_qubits = self.n_qubits
         self._initial_state = initial_state
 
@@ -335,11 +339,25 @@ class FCircuit:
     def __repr__(self):
         return self.__str__()
 
-    def reorder(self,norb):
+    def to_upthendown(self,norb)->FCircuit:
+        '''
+        Initial State can't be reordered, it must always be on upthendown
+        '''
         u = []
         for gate in self.gates:
-            g = deepcopy(gate).reorder(norb)
+            g = deepcopy(gate).to_upthendown(norb)
             g.reordered = True
+            u.append(g)
+        return FCircuit(gates=u,parameter_map=self._parameter_map,initial_state=self.initial_state)
+
+    def to_udud(self,norb)->FCircuit:
+        '''
+        Initial State can't be reordered, it must always be on upthendown
+        '''
+        u = []
+        for gate in self.gates:
+            g = deepcopy(gate).to_udud(norb)
+            g.reordered = False
             u.append(g)
         return FCircuit(gates=u,parameter_map=self._parameter_map,initial_state=self.initial_state)
 
@@ -492,21 +510,23 @@ if __name__ == '__main__':
     import sunrise as sun
     
     U = sun.gates.FermionicExcitation([(0,2),(1,3)],"a")
-    U.initial_state = tq.gates.X([0,1])
+    U.initial_state = tq.gates.X([0,4])
     U += sun.gates.UC(0,1,"b")
     U = U + sun.gates.UR(1,2,'c')
+    U += sun.gates.FermionicExcitation([(1,2)],'d',reordered=True)
     print(U)
     print(U.make_parameter_map())
     print(U.max_qubit())
-    A = U.reorder(4)
+    A = U.to_upthendown(4)
     print(A)
     print(A.extract_indices())
     print(A.variables)
     print(A.initial_state)
     print(A.extract_variables())
     print(A.make_parameter_map())
-    print(A.initial_state._state)
-
+    E = A.to_udud(4)
+    print(E)
+    exit()
     B = FCircuit.from_edges([(0,1),(2,3)])
     print(B.extract_variables())
     print(B.extract_indices())
