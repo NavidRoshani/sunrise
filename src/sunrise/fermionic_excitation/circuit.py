@@ -11,7 +11,8 @@ from numpy import ndarray
 import warnings
 import numbers
 from copy import deepcopy
-
+from sunrise.fermionic_excitation.gates import FermionicExcitation
+from sunrise.fermionic_excitation.fgateimpl import FGateImpl
 
 class FCircuit:
     """
