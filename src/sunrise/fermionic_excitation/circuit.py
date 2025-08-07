@@ -71,13 +71,23 @@ class FCircuit:
         self.initial_state = initial_state 
         self.verify()
 
-    def export_to(self, *args, **kwargs):
+    def export_to(self, filename: str,*args, **kwargs):
         """
         Export to png, pdf, qpic, tex with qpic backend
-        Convenience: see src/tequila/circuit/qpic.py - export_to for more
         Parameters
         """
-        pass #TODO Use our Fermionic Circuit Printer
+        U = deepcopy(self)
+        if 'n_orb' in kwargs:
+            n_orb = kwargs['n_orb']
+        else: n_orb = self.n_qubits//2
+        U.to_udud(n_orb)
+        if 'n_qubits_is_double' in kwargs:
+            n_qubits_is_double = kwargs['n_qubits_is_double']
+            kwargs.pop('n_qubits_is_double')
+        else: n_qubits_is_double = False
+        gU = sunrise.GraphicalCircuit.from_circuit(U=U, n_qubits_is_double=n_qubits_is_double)
+        gU.export_to(filename=filename,*args,**kwargs)
+        
 
     @property
     def initial_state(self)->QubitWaveFunction:
@@ -118,7 +128,7 @@ class FCircuit:
         return len(self.gates)
 
     @property
-    def gates(self):
+    def gates(self)->typing.List(sunrise.fermionic_excitation.fgateimpl.FGateImpl):
         if self._gates is None:
             return []
         else:
@@ -134,7 +144,7 @@ class FCircuit:
         for g in self.gates:
             accumulate += list(g.qubits)
         if self._initial_state is not None:
-            accumulate.append([*range(self._initial_state.n_qubits)])
+            accumulate.extend([*range(self._initial_state.n_qubits)])
         return sorted(list(set(accumulate)))
 
     @property

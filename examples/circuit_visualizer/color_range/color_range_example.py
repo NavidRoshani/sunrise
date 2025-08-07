@@ -1,7 +1,7 @@
 import sunrise as sun
 from math import pi
 
-circuit =sun.Circuit([
+circuit =sun.GraphicalCircuit([
     sun.SingleExcitation(0, 2, angle=0.),
     sun.SingleExcitation(0, 2, angle=pi / 6),
     sun.SingleExcitation(0, 2, angle=pi / 4),

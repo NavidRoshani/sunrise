@@ -27,7 +27,10 @@ class FGateImpl:
     
     def __str__(self):
         return f'{self._name}(Indices = {self.indices} Variable = {self.variables})'
-    
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
     def __eq__(self, other):
         if self._name != other._name:
             return False

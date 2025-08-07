@@ -4,7 +4,7 @@ import sunrise as sun
 
 select = {0:"B",1:"F",2:"F",3:"B"}
 
-circuit = sun.Circuit([
+circuit = sun.GraphicalCircuit([
     # Initial state gate, qubits are halved
     sun.GenericGate(U=tq.gates.X([0,1,2,3]), name="initialstate", n_qubits_is_double=True),
 

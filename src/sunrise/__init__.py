@@ -1,9 +1,9 @@
 from sunrise.hybrid_base import Molecule
 from sunrise.plot_MO import plot_MO
 from sunrise.hybridization.hybridization import Graph
-from sunrise.molecularcircuitvisualizer.qpic_visualization import qpic_to_pdf,qpic_to_png,from_circuit
-from sunrise.molecularcircuitvisualizer.generic import *
-from sunrise.molecularcircuitvisualizer.quantum_chemistry import *
+from sunrise.graphical.qpic_visualization import qpic_to_pdf,qpic_to_png
+from sunrise.graphical.generic import * #TODO: Remove, it may overlap with FCircuit gates
+from sunrise.graphical.quantum_chemistry import *
 from sunrise.hcb_measurement.measurement_utils import *
 from sunrise.fermionic_excitation.orb_rotation import OrbitalRotation
 from sunrise.miscellaneous.giuseppe import giuseppe

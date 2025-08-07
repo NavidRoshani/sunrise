@@ -13,7 +13,7 @@ U += mol.make_excitation_gate(indices=[(5,7)],angle="b")
 U += mol.UR(0,1,1)
 U += mol.UC(1,2,2)
 
-visual_circuit = sun.from_circuit(U, n_qubits_is_double=True)
+visual_circuit = sun.GraphicalCircuit.from_circuit(U=U, n_qubits_is_double=True)
 
 visual_circuit.export_qpic("from_circuit_example") # Create qpic file
 visual_circuit.export_to("from_circuit_example.pdf") # Create pdf file

@@ -1,6 +1,6 @@
 import sunrise as sun
 
-circuit =sun.Circuit([
+circuit =sun.GraphicalCircuit([
     sun.SingleExcitation(0, 3, angle="a"),
     sun.DoubleExcitation(0, 2, 1, 3, angle=1.0),
     sun.DoubleExcitation(0, 2, 1, 5, angle="c"),
