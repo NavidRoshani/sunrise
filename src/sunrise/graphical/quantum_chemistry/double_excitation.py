@@ -32,7 +32,7 @@ class DoubleExcitation(PairCorrelatorGate):
         used = list(range(min(self.i, self.j, self.k, self.l) // (1+(not self.n_qubits_is_double)), max(self.i, self.j, self.k, self.l) // (1+(not self.n_qubits_is_double)) + 1))
 
         if self.control is not None:
-            used.append(self.control // 2)
+            used.append(self.control // (1+(not self.n_qubits_is_double)))
 
         return used
 

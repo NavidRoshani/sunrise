@@ -4,6 +4,7 @@ from ..core import Gate
 from sunrise.graphical import generic
 from ..quantum_chemistry import PairCorrelatorGate
 from ..quantum_chemistry import SingleExcitation
+from ..quantum_chemistry import GenericExcitation
 from ..generic.gate import GenericGate
 from ..quantum_chemistry import DoubleExcitation
 from ..quantum_chemistry import OrbitalRotatorGate
@@ -101,11 +102,12 @@ class GraphicalCircuit(Gate):
                         was_ur = True
                     else:
                         res.append(SingleExcitation(index[0], index[1], angle=gate._parameter,n_qubits_is_double=n_qubits_is_double, *args, **kwargs))
-                else:
+                elif len(index) ==4:
                     if index[0] // 2 == index[2] // 2 and index[1] // 2 == index[3] // 2 and not n_qubits_is_double:  ## TODO: Maybe generalized for further excitations
                         res.append(PairCorrelatorGate(index[0] // 2, index[1] // 2, angle=gate._parameter, *args, **kwargs))
                     else:
                         res.append(DoubleExcitation(index[0], index[1], index[2], index[3], angle=gate._parameter, n_qubits_is_double=n_qubits_is_double, *args,**kwargs))
+                else: res.append(GenericExcitation(indices=index,angle=gate._parameter, n_qubits_is_double=n_qubits_is_double, *args,**kwargs))
             elif gate._name == 'QubitExcitation':
                 index = gate._target
                 if len(index) == 2:
@@ -133,7 +135,6 @@ class GraphicalCircuit(Gate):
 
         circuit = U._gates
         res = []
-        was_ur = False
         if U.initial_state is not None:
             E = X(target=U.qubits)
             # E.qubits = [*range(U.initial_state.n_qubits)]
@@ -148,7 +149,7 @@ class GraphicalCircuit(Gate):
                     res.append(SingleExcitation(index[0][0], index[0][1], angle=gate.variables[0],n_qubits_is_double=n_qubits_is_double, *args, **kwargs))
                 elif len(index) == 4:
                     res.append(DoubleExcitation(index[0][0], index[0][1], index[1][0], index[1][0], angle=gate.variables[0], n_qubits_is_double=n_qubits_is_double, *args,**kwargs))
-                else: continue #TODO: Generic Further Excitation
+                else: res.append(GenericExcitation(indices=index,angle=gate.variables[0], n_qubits_is_double=n_qubits_is_double, *args,**kwargs))
             elif gate._name == 'UR':
                 if not n_qubits_is_double:
                     res.append(OrbitalRotatorGate(index[0][0] // 2, index[0][1] // 2, angle=gate.variables[0], *args, **kwargs))
