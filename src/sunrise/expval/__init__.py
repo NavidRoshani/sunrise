@@ -9,9 +9,9 @@ try:
 except ImportError:
     pass
 try:
-    from sunrise.expval.fqe_expval import FQEBraket
+    from sunrise.expval.fqe_expval import FQEBraKet
 
-    INSTALLED_FERMIONIC_BACKENDS["fqe"] = FQEBraket
+    INSTALLED_FERMIONIC_BACKENDS["fqe"] = FQEBraKet
 except ImportError:
     pass
 
