@@ -42,16 +42,14 @@ def get_expval_and_grad_pyscf(
     #TODO: Improve this using tequila Objective, and copy paste in the other functions
     for i,pa in enumerate(params):
         if isinstance(pa,FixedVariable):
-            ang_grad[i:] = zeros(len(total_variables))
-        else:
-            for j,an in enumerate(total_variables):
-                ang_grad[i,j]=simulate(grad(1*pa,an),variables=dangles) 
+            continue
+        for j,an in enumerate(total_variables):
+            ang_grad[i,j]=simulate(grad(1*pa,an),variables=dangles) 
     for i,pa in enumerate(params_bra):
         if isinstance(pa,FixedVariable):
-             ang_grad_bra[i:] = zeros(len(total_variables))
-        else:
-            for j,an in enumerate(total_variables):
-                ang_grad_bra[i,j]=simulate(grad(1*pa,an),variables=dangles)
+            continue
+        for j,an in enumerate(total_variables):
+            ang_grad_bra[i,j]=simulate(grad(1*pa,an),variables=dangles)
     gradients = np.add(gradients_beforesum.dot(ang_grad),gradients_beforesum_bra.dot(ang_grad_bra))
     return energy, gradients, bra @ ket
 
@@ -74,10 +72,9 @@ def get_energy_and_grad_pyscf(
     ang_grad = np.zeros((len(params),len(total_variables)))
     for i,pa in enumerate(params):
         if isinstance(pa,FixedVariable):
-            ang_grad[i:] = zeros(len(total_variables))
-        else:
-            for j,an in enumerate(total_variables):
-                ang_grad[i,j]=simulate(grad(1*pa,an),variables=dangles) 
+            continue
+        for j,an in enumerate(total_variables):
+            ang_grad[i,j]=simulate(grad(1*pa,an),variables=dangles) 
     gradients = gradients_beforesum.dot(ang_grad)
 
     return energy, 2 * gradients
