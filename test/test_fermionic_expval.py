@@ -3,8 +3,9 @@ import pytest
 import sunrise as sn
 from sunrise.expval import INSTALLED_FERMIONIC_BACKENDS,Braket
 from numpy import isclose
-
-
+import random
+from datetime import datetime
+from numpy import pi
 
 HAS_TCC = "tcc" in INSTALLED_FERMIONIC_BACKENDS
 HAS_FQE = "fqe" in INSTALLED_FERMIONIC_BACKENDS
@@ -61,3 +62,20 @@ def test_transition(backend):
     sunval = Braket(molecule=mol,bra=bra,ket=ket,backend=backend)
     bkov = sunval.simulate(res1.angles)
     assert isclose(tqov,bkov,atol=1.e-3)
+
+@pytest.mark.parametrize("geom",["H 0.0 0.0 0.0\nH 0.0 0.0 1.6\nH 0.0 0.0 3.2\nH 0.0 0.0 4.8","H 0. 0. 0.\n Be 0. 0. 1.6\n H 0. 0. 3.2"])
+@pytest.mark.parametrize('backend',INSTALLED_FERMIONIC_BACKENDS)
+def test_maped_variables(geom,backend):
+    random.seed(datetime.now().timestamp())
+    mol = tq.Molecule(geometry=geom,basis_set='sto-3g',transformation='reordered-jordan-wigner').use_native_orbitals()
+    edges = sn.Molecule(geometry=geom,basis_set='sto-3g').get_spa_edges()
+    U = mol.make_ansatz("SPA",edges=edges,optimize=False)
+    mapa = {d:random.random()*pi for d in U.extract_variables()}
+    U = U.map_variables(mapa)
+    circuit = sn.FCircuit.from_edges(edges=edges,n_orb=mol.n_orbitals)
+    circuit = circuit.map_variables(mapa)
+    expval = tq.ExpectationValue(H=mol.make_hamiltonian(),U=U)
+    sunval = Braket(molecule=mol,circuit=circuit,backend=backend)
+    tqE = tq.simulate(expval,{})
+    sunE = sunval()
+    assert isclose(tqE,sunE)

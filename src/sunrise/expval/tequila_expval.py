@@ -12,7 +12,7 @@ from numpy import array,ceil,pi
 from pyscf.gto import Mole
 from sunrise.expval.pyscf_molecule import from_tequila
 from copy import deepcopy
-from typing import Union
+from typing import Any, Union
 
 class TequilaBraket():
     def __init__(self,U:list[QCircuit,list,tuple]=None,bra:QCircuit=None,ket:QCircuit=None,reference:QCircuit=None,operator:QubitHamiltonian=None,*args,**kwargs):
@@ -103,10 +103,16 @@ class TequilaBraket():
         self.ket = ket
         self.bra = bra
 
+    def __call__(self, *args: Any, **kwds: Any) -> float:
+        return self.simulate()
+    
     def minimize(self,**kwargs)->float:
         pass
 
     def simulate(self,params:Union[list,dict])->float:
+        pass
+
+    def extract_variables(self)-> list:
         pass
 
     @property

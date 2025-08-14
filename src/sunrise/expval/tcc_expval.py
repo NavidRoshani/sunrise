@@ -1,8 +1,8 @@
 import tencirchem as tcc
 from sunrise.expval.tcc_engine.braket import EXPVAL
 from ..fermionic_excitation.circuit import FCircuit
-from tequila import TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective
-from tequila.objective.objective import Variables
+from tequila import TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective,assign_variable
+from tequila.objective.objective import Variables,FixedVariable
 from tequila.quantumchemistry.chemistry_tools import NBodyTensor
 from tequila.quantumchemistry import qc_base
 from tequila.utils.bitstrings import BitString
@@ -11,8 +11,7 @@ from numpy import array,ceil,argwhere
 from pyscf.gto import Mole
 from sunrise.expval.pyscf_molecule import from_tequila
 from copy import deepcopy
-from typing import Union
-
+from typing import Any, Union
 #assumed to be installed pyscf since dependency for sunrise and tcc
 
 class TCCBraket:
@@ -158,7 +157,7 @@ class TCCBraket:
         if bra is not None:
             bra = bra.to_upthendown(len(self.BK.aslst))
             self.bra = bra.extract_indices() 
-        self.opt_res = None
+        self.opt_res = {}
         
     def minimize(self,**kwargs)->float:
         if 'init_guess_bra' in kwargs:
@@ -167,10 +166,17 @@ class TCCBraket:
             self.init_guess_ket = kwargs['init_guess_ket']
         if "init_guess" in kwargs:
             self.init_state = kwargs["init_guess"]
-        self.BK.kernel()
-        self.opt_res = deepcopy(self.BK.opt_res)
-        self.opt_res.x = [-2*i for i in self.opt_res.x] #translating to tq
-        return self.BK.opt_res.e
+        e = self.BK.kernel()
+        if self.BK.opt_res is not None:
+            self.opt_res = deepcopy(self.BK.opt_res)
+            self.opt_res.x = [-2*i for i in self.opt_res.x] #translating to tq
+            return self.BK.opt_res.e
+        else: 
+            self.opt_res['e'] = e
+            return e
+
+    def __call__(self, params:Union[list,dict]={}) -> float:
+        return self.simulate(params=params)
 
     def simulate(self,params:Union[list,dict])->float:
         if isinstance(params,Variables):
@@ -183,9 +189,28 @@ class TCCBraket:
         params:list = [-i/2 for i in params] #Here translation 
         return self.BK.expval(angles=params)
 
+    def extract_variables(self) -> list:
+        """
+        Extract all variables on which the objective depends
+        :return: List of all Variables
+        """
+        variables = deepcopy(self.variables)
+        variables = {d:variables[d] for d in variables.keys() if not isinstance(d,FixedVariable)}
+        # remove duplicates without affecting ordering
+        # allows better reproducibility for random initialization
+        # won't work with set
+        unique = []
+        for i in variables:
+            if i not in unique:
+                unique.append(i)
+        return unique
+
     @property
     def energy(self)->float:
-        return self.opt_res.e
+        if isinstance(self.opt_res,dict):
+            return self.opt_res['e']
+        else:
+            return self.opt_res.e
 
     @property
     def bra(self):
@@ -241,6 +266,9 @@ class TCCBraket:
         '''
         See TCC variables
         '''
+        for idx,i in enumerate(variables_bra):
+            if isinstance(assign_variable(i),FixedVariable):
+                variables_bra[idx]=assign_variable(-0.5*i)
         self.BK.params_bra = variables_bra
 
     @property
@@ -263,6 +291,9 @@ class TCCBraket:
         '''
         See TCC variables
         '''
+        for idx,i in enumerate(variables_ket):
+            if isinstance(assign_variable(i),FixedVariable):
+                variables_ket[idx]=assign_variable(-0.5*i)
         self.BK.params_ket = variables_ket
     
     @property

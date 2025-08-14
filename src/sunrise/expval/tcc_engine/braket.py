@@ -23,7 +23,8 @@ from tencirchem.static.engine_ucc import (
 from tencirchem.static.ci_utils import get_ci_strings, get_ex_bitstring, get_init_civector
 from tencirchem.static.evolve_tensornetwork import get_circuit
 from sunrise.expval.tcc_engine.engine_braket import get_energy, get_expval,get_expval_and_grad,get_energy_and_grad
-from tequila import Objective,Variable,simulate
+from tequila import Objective,Variable,simulate,assign_variable
+from tequila.objective.objective import Variables,FixedVariable
 
 class EXPVAL(UCC):
     def __init__(
@@ -172,7 +173,10 @@ class EXPVAL(UCC):
         e: float
             The optimized energy
         """
-        
+        if not self.n_variables:
+            if self.is_diagonal():
+                return self.energy()
+            else: return self.expval()
         energy_and_grad, stating_time = self.get_opt_function(with_time=True)
         
         if self.init_guess is None:
@@ -239,6 +243,8 @@ class EXPVAL(UCC):
         if self.is_diagonal():
             return self.energy(angles=angles,engine=engine)
         self._sanity_check()
+        if angles is None:
+            angles = []
         angles  = self._check_params_argument(angles)
         hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
         e , s = get_expval(angles=angles,hamiltonian=hamiltonian, n_qubits=self.n_qubits, n_elec_s=self.n_elec_s,total_variables=self.total_variables,
@@ -281,6 +287,8 @@ class EXPVAL(UCC):
         if not self.is_diagonal():
             return self.expval(angles=angles,engine=engine)
         self._sanity_check()
+        if angles is None:
+            angles = []
         angles  = self._check_params_argument(angles)
         hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
         e = get_energy(angles=angles,hamiltonian=hamiltonian, n_qubits=self.n_qubits, n_elec_s=self.n_elec_s,total_variables=self.total_variables,
@@ -819,11 +827,16 @@ class EXPVAL(UCC):
                 if isinstance(j,Variable):
                     var_ket.append(j)
                     params_ket[i]= j.name
+                elif isinstance(j,FixedVariable):
+                    var_ket.append(j)
+                    # params_ket[i]= j
                 elif isinstance(j,Objective):
                     var_ket.append(j)
                     params_ket[i] = f'f({j.extract_variables()})'
                 else:
-                    var_ket.append(Variable(f"{str(j)}"))
+                    var_ket.append(assign_variable(j))
+                    # params_ket.append(assign_variable(j).name)
+                    # # var_ket.append(Variable(f"{str(j)}"))
             self._params_ket = params_ket
             self._variables_ket = var_ket
     

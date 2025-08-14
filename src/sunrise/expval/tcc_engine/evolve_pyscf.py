@@ -1,7 +1,8 @@
 from tencirchem.static.evolve_pyscf import *
 from tencirchem.static.evolve_pyscf import _get_gradients_pyscf
-from tequila import simulate,Objective,Variable,grad,QTensor
-
+from tequila import simulate,grad,QTensor
+from tequila.objective.objective import FixedVariable,Objective,Variable
+from numpy import zeros
 
 def get_expval_and_grad_pyscf(
     angles, hamiltonian, n_qubits, n_elec_s,total_variables,
@@ -40,11 +41,17 @@ def get_expval_and_grad_pyscf(
     ang_grad_bra = np.zeros((len(params_bra),len(total_variables)))
     #TODO: Improve this using tequila Objective, and copy paste in the other functions
     for i,pa in enumerate(params):
-        for j,an in enumerate(total_variables):
-            ang_grad[i,j]=simulate(grad(1*pa,an),variables=dangles) 
+        if isinstance(pa,FixedVariable):
+            ang_grad[i:] = zeros(len(total_variables))
+        else:
+            for j,an in enumerate(total_variables):
+                ang_grad[i,j]=simulate(grad(1*pa,an),variables=dangles) 
     for i,pa in enumerate(params_bra):
-        for j,an in enumerate(total_variables):
-            ang_grad_bra[i,j]=simulate(grad(1*pa,an),variables=dangles)
+        if isinstance(pa,FixedVariable):
+             ang_grad_bra[i:] = zeros(len(total_variables))
+        else:
+            for j,an in enumerate(total_variables):
+                ang_grad_bra[i,j]=simulate(grad(1*pa,an),variables=dangles)
     gradients = np.add(gradients_beforesum.dot(ang_grad),gradients_beforesum_bra.dot(ang_grad_bra))
     return energy, gradients, bra @ ket
 
@@ -66,8 +73,11 @@ def get_energy_and_grad_pyscf(
     gradients_beforesum = _get_gradients_pyscf(bra, ket, map_params, n_qubits, n_elec_s, ex_ops, [*range(len(ex_ops))], mode)
     ang_grad = np.zeros((len(params),len(total_variables)))
     for i,pa in enumerate(params):
-        for j,an in enumerate(total_variables):
-            ang_grad[i,j]=simulate(grad(1*pa,an),variables=dangles)
+        if isinstance(pa,FixedVariable):
+            ang_grad[i:] = zeros(len(total_variables))
+        else:
+            for j,an in enumerate(total_variables):
+                ang_grad[i,j]=simulate(grad(1*pa,an),variables=dangles) 
     gradients = gradients_beforesum.dot(ang_grad)
 
     return energy, 2 * gradients
