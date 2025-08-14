@@ -169,7 +169,7 @@ class FCircuit:
     def variables(self)->list:
         v = []
         for gate in self.gates:
-            v.extend(gate.variables)
+            v.append(gate.variables)
         return v
 
     def make_parameter_map(self) -> dict:
@@ -183,9 +183,10 @@ class FCircuit:
         """
         parameter_map = defaultdict(list)
         for idx, gate in enumerate(self.gates):
-            variables = gate.extract_variables()
-            for variable in variables:
-                parameter_map[variable] += [(idx, gate)]
+            if gate.is_parameterized():
+                variables = gate.extract_variables()
+                for variable in variables:
+                    parameter_map[variable] += [(idx, gate)]
 
         return parameter_map
 
@@ -282,6 +283,49 @@ class FCircuit:
             the variables of the circuit
         """
         return list(self._parameter_map.keys())
+
+    def is_fully_parametrized(self):
+        """
+        Returns
+        -------
+        bool:
+            whether or not all gates in the circuit are paremtrized
+        """
+        for gate in self.gates:
+            if not gate.is_parameterized():
+                return False
+            else:
+                if hasattr(gate, "parameter"):
+                    if not hasattr(gate.parameter, "wrap"):
+                        return False
+                    else:
+                        continue
+                else:
+                    continue
+        return True
+
+    def is_fully_unparametrized(self):
+        """
+        Returns
+        -------
+        bool:
+            whether or not all gates in the circuit are unparametrized
+        """
+        for gate in self.gates:
+            if not gate.is_parameterized():
+                continue
+            else:
+                if hasattr(gate, "parameter"):
+                    if not hasattr(gate.parameter, "wrap"):
+                        continue
+                    else:
+                        return False
+                else:
+                    return False
+        return True
+
+    def is_mixed(self):
+        return not (self.is_fully_parametrized() or self.is_fully_unparametrized())
 
     def extract_indices(self) -> list:
         l = []
@@ -505,7 +549,7 @@ class FCircuit:
 
         new_gates = [copy.deepcopy(gate).map_variables(variables) for gate in self.gates]
 
-        return FCircuit(gates=new_gates)
+        return FCircuit(gates=new_gates,initial_state=self.initial_state,parameter_map=self._parameter_map)
 
     def to_matrix(self, variables=None): #TODO:  Should we?
         pass 

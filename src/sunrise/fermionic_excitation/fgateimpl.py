@@ -1,19 +1,24 @@
 import numbers
 import typing
-from tequila.objective.objective import FixedVariable,Variable
+from tequila.objective.objective import FixedVariable,Variable,Variables
 from .circuit import FCircuit
-from tequila.circuit._gates_impl import assign_variable
 from tequila import TequilaException
+from tequila import QCircuit,QTensor,Molecule,assign_variable
+from numpy import zeros,eye,allclose,ndarray,array
 from copy import deepcopy
 
 class FGateImpl:
     def __init__(self,indices:typing.Union[list,tuple]|None=None,variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]=None,reordered:bool=False):
-        self.reordered=reordered
-        self._indices = indices
-        self._variables=variables
-        self._name = 'GenericFermionic'
+        self.reordered:bool=reordered
+        self._indices:list = indices
+        self.variables=variables
+        self._name:str = 'GenericFermionic'
         self.verify()
         return FCircuit.wrap_gate(gate=self)
+
+    @property
+    def name(self):
+        return self._name
 
     def to_upthendown(self,norb:int):
         if not self.reordered:
@@ -26,7 +31,7 @@ class FGateImpl:
         return self
     
     def __str__(self):
-        return f'{self._name}(Indices = {self.indices} Variable = {self.variables})'
+        return f'{self.name}(Indices = {self.indices} Variable = {self.variables})'
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -40,6 +45,9 @@ class FGateImpl:
             return False
         return True
             
+    def is_parameterized(self,):
+        return not isinstance(self.variables,FixedVariable)
+
     @property
     def indices(self):
         return self._indices
@@ -49,20 +57,18 @@ class FGateImpl:
         self._indices = indices
     
     def extract_variables(self)->list[Variable]:
-        return [v for v in self.variables]
+        return [self.variables]
 
     @property
-    def variables(self):
+    def variables(self)->Variable:
         return self._variables
     
     @variables.setter
-    def variables(self,variables):
-        self._variables = variables
+    def variables(self,variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]):
+        self._variables:Variable = assign_variable(variables)
 
     def verify(self):
-        if isinstance(self._variables,(typing.Hashable, numbers.Real, Variable, FixedVariable)):
-            self._variables = [self._variables] 
-        self._variables = [assign_variable(v) for v in self._variables]
+        assert isinstance(self._variables,(typing.Hashable, numbers.Real, Variable, FixedVariable))
         if isinstance(self._indices[0],numbers.Number): #[1,3]
             self._indices = [[tuple(self._indices),],] #->[[(1,3)]]
         elif isinstance(self._indices[0][0],numbers.Number): #[(0,2),(1,2)]
@@ -82,14 +88,18 @@ class FGateImpl:
         else: return 0
 
     @property
-    def n_qubits(self):
+    def n_qubits(self)->int:
         return len(self.qubits)
     
     def map_qubits(self,qubit_map:dict={}):
         self._indices =[[(qubit_map[idx[0]],qubit_map[idx[1]]) for idx in gate] for gate in self._indices]
+        return self
 
     def map_variables(self,var_map:dict={}):
-        self._variables = [var_map[v] for v in self._variables]
+        if self.is_parameterized():
+            if self.variables in var_map:
+                self.variables = var_map[self.variables]
+        return self
 
     def dagger(self):
         indinces = []
