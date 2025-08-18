@@ -38,7 +38,7 @@ class input_state:
             self.wavefunction = tq.compile(self.circuit)(variables)
         return self.wavefunction
 
-def gates_to_orb_rot(rotation_circuit, dim):
+def gates_to_orb_rot(rotation_circuit, dim, isReordered=False):
     """
     rotation_circuit: a circuit with UR gates
     dim: the dimension of the spatial orbital space, i.e., the number of orbitals
@@ -53,15 +53,18 @@ def gates_to_orb_rot(rotation_circuit, dim):
         params.append(gate.parameter)
         indices.append(gate.indices)
 
-    # Select only even values
+    # Select only odd values
     # Because UR gates rotate molecular orbitals 
-    params = params[::2]
-    indices = indices[::2]
+    params = params[1::2]
+    indices = indices[1::2]
 
     # Refactor as a list
     tmp = []
     for i in indices:
-        tmp.append((int(i[0][0]/2),int(i[0][1]/2)))
+        if isReordered:
+            tmp.append((int(i[0][0]),int(i[0][1])))
+        else:
+            tmp.append((int(i[0][0]/2),int(i[0][1]/2)))
     indices = tmp
 
     # Create a matrix for each UR gate
@@ -84,13 +87,12 @@ def gates_to_orb_rot(rotation_circuit, dim):
 
     return transformation_matrix
 
-def fold_rotators(mol, UR):
+def fold_rotators(mol, UR, *args, **kwargs):
     """
     Rotate the one- and two-body integrals of a molecule using the UR gates
     """
     # Get the transformation matrix from the circuit
-    orb_coeff = mol.integral_manager.orbital_coefficients
-    UR_matrix = gates_to_orb_rot(UR, len(orb_coeff))
+    UR_matrix = gates_to_orb_rot(UR, mol.n_orbitals, *args, **kwargs)
 
     # Rotate one- and two-body part
     c,h,g = mol.get_integrals()
@@ -105,8 +107,8 @@ def fold_rotators(mol, UR):
     tg = np.einsum("ixkl, jx -> ijkl", tg, UR_matrix, optimize='greedy')
     tg = np.einsum("xjkl, ix -> ijkl", tg, UR_matrix, optimize='greedy')
 
-    tmol = tq.Molecule(geometry=mol.parameters.geometry, nuclear_repulsion=c, one_body_integrals=th,
-                       two_body_integrals=tg, basis_set=mol.parameters.basis_set, ordering='openfermion')
+    tmol = tq.Molecule(parameters=mol.parameters, transformation=mol.transformation, n_electrons=mol.n_electrons,
+                       nuclear_repulsion=c, one_body_integrals=th, two_body_integrals=tg, ordering='openfermion')
 
     return tmol
 
@@ -139,14 +141,14 @@ def get_hcb_part(mol):
                         res_g[i][j][k][l] = g.elems[i][j][k][l]
 
     # Create the HCB and residual molecule
-    hcb_mol = tq.Molecule(geometry=mol.parameters.geometry, nuclear_repulsion=c, one_body_integrals=hcb_h, two_body_integrals=hcb_g,
-                          basis_set=mol.parameters.basis_set, ordering='openfermion')
-    res_mol = tq.Molecule(geometry=mol.parameters.geometry, nuclear_repulsion=0, one_body_integrals=res_h, two_body_integrals=res_g,
-                          basis_set=mol.parameters.basis_set, ordering='openfermion')
+    hcb_mol = tq.Molecule(parameters=mol.parameters, transformation=mol.transformation, n_electrons=mol.n_electrons,
+                          nuclear_repulsion=c, one_body_integrals=hcb_h, two_body_integrals=hcb_g, ordering='openfermion')
+    res_mol = tq.Molecule(parameters=mol.parameters, transformation=mol.transformation, n_electrons=mol.n_electrons,
+                          nuclear_repulsion=0, one_body_integrals=res_h, two_body_integrals=res_g, ordering='openfermion')
 
     return hcb_mol, res_mol
 
-def rotate_and_hcb(molecule, rotators, circuit=None, variables=None, initial_state=None, approx=0.0, target=None, silent=True, *args, **kwargs):
+def rotate_and_hcb(molecule, rotators, circuit=None, variables=None, initial_state=None, target=None, silent=True, *args, **kwargs):
     """
     Rotate the molecule using the UR gates and extract the hcb part and the residual part of the transformed molecule.
     Iterate for all the elements of the rotators list.
@@ -174,10 +176,11 @@ def rotate_and_hcb(molecule, rotators, circuit=None, variables=None, initial_sta
 
     # General procedure, loop over the list of rotators
     hcb_mols = []
+    approx = 0.0
     old_UR = tq.QCircuit()
     for i,UR in enumerate(rotators):
         # Rotate the two body part
-        tmol = fold_rotators(molecule, old_UR.dagger()+UR)
+        tmol = fold_rotators(molecule, old_UR.dagger()+UR, *args, **kwargs)
         tcircuit = circuit + UR
 
         # Extract the hcb part and the residual part of the transformed molecule
@@ -196,6 +199,7 @@ def rotate_and_hcb(molecule, rotators, circuit=None, variables=None, initial_sta
             print(f"Approximation:         {approx}")
             print(f"Increment:             {incr}")
             print(f"Error in new basis:    {target-approx}")
+            # print(f"test:                  {target-approx-rest}")
 
             M_tot = compute_num_meas(circuit=circuit, variables=variables, initial_state=initial_state, is_hcb=True, hcb_mol=hcb_mol)
             print(f"Number of measurements: {M_tot:e}\n")
