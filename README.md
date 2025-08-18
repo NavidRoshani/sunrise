@@ -97,10 +97,10 @@ UR2+= mol.UR(0,1,angle="x") + mol.UR(0,2,angle="y") + mol.UR(1,3,angle="xx") + m
 UC2 = mol.UC(1,2,angle="b") + mol.UC(0,3,angle="c")
 U = U0 + UR1.dagger() + UR2 + UC2 + UR2.dagger()
 
-variables = {((0, 1), 'D', None): -0.644359150621798, ((2, 3), 'D', None): -0.644359150621816, "x": 0.4322931478168998, "y": 4.980327764918099e-14, "xx": -3.07202211218271e-14, "yy": 0.7167447375727501, "z": -3.982666230146327e-14, "zz": 1.2737831353027637e-13, "c": -0.011081251246998072, "b": 0.49719805420976604, ((0, 3), 'D', 1): 0.0, ((1, 2), 'D', 1): 0.0}
+variables = {((0, 1), 'D', None): -0.644359150621798, ((2, 3), 'D', None): -0.644359150621816, "x": 0.4322931478168998, "y": 4.980327764918099e-14, "xx": -3.07202211218271e-14, "yy": 0.7167447375727501, "z": -3.982666230146327e-14, "zz": 1.2737831353027637e-13, "c": -0.011081251246998072, "b": 0.49719805420976604}
 E = tq.ExpectationValue(H=H, U=U)
-energy = tq.simulate(E, variables=variables)
-print(f"Energy error: {(energy-fci)*1000:.2f} mE_h\n")
+full_energy = tq.simulate(E, variables=variables)
+print(f"Energy error: {(full_energy-fci)*1000:.2f} mE_h\n")
 
 # Create rotators
 graphs = [
@@ -116,8 +116,17 @@ for graph in graphs:
     rotators.append(UR)
 
 # Apply the measurement protocol
-result = sun.rotate_and_hcb(molecule=mol, circuit=U, variables=variables, rotators=rotators, target=energy, silent=False)
+result = sun.rotate_and_hcb(molecule=mol, circuit=U, variables=variables, rotators=rotators, target=full_energy, silent=False)
 print(result) # the list of HCB molecules to measure and the residual element discarded
+
+# Compute the energy
+energy = 0
+for i,hcb_mol in enumerate(result[0]):
+    expval = tq.ExpectationValue(U=U+rotators[i], H=hcb_mol.make_hamiltonian())
+    energy += tq.simulate(expval, variables=variables)
+
+print(f"Energy of the accumulated HCB contributions: {energy}")
+print(f"Error: {energy-full_energy}")
 ```
 
 Example using a wavefunction (Scenario I):
@@ -134,7 +143,7 @@ mol = tq.Molecule(geometry="h 0.0 0.0 0.0\nh 0.0 0.0 1.5\nh 0.0 0.0 3.0\nh 0.0 0
 fci = mol.compute_energy("fci")
 H = mol.make_hamiltonian()
 
-# Create true wave function and dummy circuit
+# Create true wave function
 Hof = H.to_openfermion()
 Hsparse = of.linalg.get_sparse_operator(Hof)
 v,vv = scipy.sparse.linalg.eigsh(Hsparse, sigma=fci)
@@ -157,6 +166,15 @@ for graph in graphs:
 # Apply the measurement protocol
 result = sun.rotate_and_hcb(molecule=mol, rotators=rotators, target=fci, initial_state=wfn, silent=False)
 print(result) # the list of HCB molecules to measure and the residual element discarded
+
+# Compute the energy
+energy = 0
+for i,hcb_mol in enumerate(result[0]):
+    expval = tq.ExpectationValue(U=rotators[i], H=hcb_mol.make_hamiltonian())
+    energy += tq.simulate(expval, initial_state=wfn)
+
+print(f"Energy of the accumulated HCB contributions: {energy}")
+print(f"Error: {energy-fci}")
 ```
 
 # Hybridization

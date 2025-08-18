@@ -20,8 +20,8 @@ variables = {((0, 1), 'D', None): -0.644359150621798, ((2, 3), 'D', None): -0.64
              "xx": -3.07202211218271e-14, "yy": 0.7167447375727501, "z": -3.982666230146327e-14, "zz": 1.2737831353027637e-13, "c": -0.011081251246998072,
              "b": 0.49719805420976604}
 E = tq.ExpectationValue(H=H, U=U)
-energy = tq.simulate(E, variables=variables)
-print(f"Energy error: {(energy-fci)*1000:.2f} mE_h\n")
+full_energy = tq.simulate(E, variables=variables)
+print(f"Energy error: {(full_energy-fci)*1000:.2f} mE_h\n")
 
 # Create rotators
 graphs = [
@@ -37,5 +37,14 @@ for graph in graphs:
     rotators.append(UR)
 
 # Apply the measurement protocol
-result = sun.rotate_and_hcb(molecule=mol, circuit=U, variables=variables, rotators=rotators, target=energy, silent=False)
+result = sun.rotate_and_hcb(molecule=mol, circuit=U, variables=variables, rotators=rotators, target=full_energy, silent=False)
 print(result) # the list of HCB molecules to measure and the residual element discarded
+
+# Compute the energy
+energy = 0
+for i,hcb_mol in enumerate(result[0]):
+    expval = tq.ExpectationValue(U=U+rotators[i], H=hcb_mol.make_hamiltonian())
+    energy += tq.simulate(expval, variables=variables)
+
+print(f"Energy of the accumulated HCB contributions: {energy}")
+print(f"Error: {energy-full_energy}")
