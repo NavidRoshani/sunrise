@@ -3,6 +3,8 @@ import numbers
 from tequila.objective.objective import FixedVariable,Variable
 from .circuit import FCircuit
 from .fgateimpl import *
+from .givens_rotations import get_givens_circuit
+from numpy import ndarray
 
 def FermionicExcitation(indices:typing.Union[list,tuple]|None=None, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None, reordered:bool=False)->FCircuit:
     return FCircuit.wrap_gate(FermionicExcitationImpl(indices,variables,reordered))
@@ -16,3 +18,8 @@ def UC(i:int,j:int, variables:typing.Union[typing.Hashable, numbers.Real, Variab
 def UX(indices:typing.Union[list,tuple]|None=None, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None, reordered:bool=False)->FCircuit:
     return FCircuit.wrap_gate(FermionicExcitationImpl(indices,variables,reordered))
 
+def Phase(i:int,variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None, reordered:bool=False)->FCircuit:
+    return FCircuit.wrap_gate(PhaseImpl(i,variables))
+
+def Givens(unitary:ndarray, tol:float=1e-12, ordering:typing.Union[list,tuple,str]='OPTIMIZED_ORDERING')->FCircuit:
+    return get_givens_circuit(unitary,tol,ordering)

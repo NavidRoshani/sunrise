@@ -135,3 +135,8 @@ class UCImpl(FGateImpl):
     def __init__(self,i,j, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None):
         super().__init__([[(2*i,2*j),(2*i+1,2*j+1)]], variables, False)
         self._name = 'UC'
+    
+class PhaseImpl(FGateImpl):
+    def __init__(self,i, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None):
+        super().__init__([[(2*i,2*i)]], variables, False)
+        self._name = 'Ph'
