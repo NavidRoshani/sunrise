@@ -1,4 +1,5 @@
-from . import FCircuit,UR,Phase
+# from . import FCircuit,UR,Phase
+from sunrise import fermionic_excitation as fe
 from tequila import QTensor,Variable,Objective
 import numpy
 import numbers
@@ -7,7 +8,7 @@ from typing import Union
 
 OPTIMIZED_ORDERING = "Optimized"
 
-def n_rotation(i:int, phi)->FCircuit:
+def n_rotation(i:int, phi)->fe.FCircuit:
         """
         Creates a quantum circuit that applies a phase rotation based on phi to both components (up and down) of a given qubit.
 
@@ -20,12 +21,12 @@ def n_rotation(i:int, phi)->FCircuit:
         """
 
         # Start a new circuit and apply rotations to each component.
-        circuit = Phase(2*i, variables=-2 * phi)
-        circuit += Phase(2*i+1, variables=-2 * phi)
+        circuit = fe.Phase(2*i, variables=-2 * phi)
+        circuit += fe.Phase(2*i+1, variables=-2 * phi)
         return circuit
 
 
-def get_givens_circuit(unitary:numpy.ndarray, tol:float=1e-12, ordering:Union[list,tuple,str]=OPTIMIZED_ORDERING)->FCircuit:
+def get_givens_circuit(unitary:numpy.ndarray, tol:float=1e-12, ordering:Union[list,tuple,str]=OPTIMIZED_ORDERING)->fe.FCircuit:
     """
     Constructs a quantum circuit from a given real unitary matrix using Givens rotations.
 
@@ -44,7 +45,7 @@ def get_givens_circuit(unitary:numpy.ndarray, tol:float=1e-12, ordering:Union[li
     theta_list, phi_list = get_givens_decomposition(unitary, tol, ordering)
 
     # Initialize an empty quantum circuit.
-    circuit = FCircuit()
+    circuit = fe.FCircuit()
 
     # Add all Rz (phase) rotations to the circuit.
     for phi in phi_list:
@@ -52,7 +53,7 @@ def get_givens_circuit(unitary:numpy.ndarray, tol:float=1e-12, ordering:Union[li
 
     # Add all Givens rotations to the circuit.
     for theta in reversed(theta_list):
-        circuit += UR(theta[1], theta[2], theta[0] * 2)
+        circuit += fe.UR(theta[1], theta[2], theta[0] * 2)
     return circuit
 
 
@@ -115,7 +116,7 @@ def get_givens_decomposition(unitary:numpy.ndarray, tol:float=1e-12, ordering:Un
     theta_list = []
     phi_list = []
 
-    def calcTheta(U, c, r)->FCircuit:
+    def calcTheta(U, c, r):
         """Calculate and apply the Givens rotation for a specific matrix element."""
         t = arctan2(-U[r, c], U[r - 1, c])
         theta_list.append((t, r, r - 1))
