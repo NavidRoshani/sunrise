@@ -126,10 +126,20 @@ class FermionicExcitationImpl(FGateImpl):
 
 class URImpl(FGateImpl):
     def __init__(self, i:int,j:int, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None):
-        super().__init__([[(2*i,2*j)],[(2*i+1,2*j+1)]], [variables,variables], False)
+        super().__init__([[(2*i,2*j)],[(2*i+1,2*j+1)]], variables, False)
         self._name = 'UR'
     def __str__(self):
         return  f'{self._name}(Indices = {self.indices} Variable = {self.extract_variables()})'
+    def verify(self):
+        assert isinstance(self._variables,(typing.Hashable, numbers.Real, Variable, FixedVariable))
+        if isinstance(self._indices[0],numbers.Number): #[1,3]
+            self._indices = [[tuple(self._indices),],] #->[[(1,3)]]
+        elif isinstance(self._indices[0][0],numbers.Number): #[(0,2),(1,2)]
+            self._indices = [self._indices,] #->[[(0,2),(1,3)],]
+        elif not isinstance(self._indices[0][0][0],numbers.Number): #[[(0,2),(1,2)]]
+            raise TequilaException(f'Indices formating not recognized, received {self._indices}')
+        assert 2*len(self._variables) == len(self._indices)
+
     
 class UCImpl(FGateImpl):
     def __init__(self,i,j, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None):

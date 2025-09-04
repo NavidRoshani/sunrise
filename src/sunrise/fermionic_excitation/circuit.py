@@ -581,7 +581,6 @@ if __name__ == '__main__':
     # print(A.make_parameter_map())
     E = A.to_udud(4)
     print(E)
-    exit()
     B = FCircuit.from_edges([(0,1),(2,3)])
     print(B.extract_variables())
     print(B.extract_indices())
