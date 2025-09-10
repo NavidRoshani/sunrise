@@ -111,24 +111,29 @@ def make_excitation_generator_op(indices: typing.Iterable[typing.Tuple[int, int]
 
     return op
 
-def create_fermionic_generators(instructions):
+def create_fermionic_generators(instructions, angles):
 
-    # instruction format [[(0,2,1,3),(2,4,3,5)],[(0,2),(1,3)]]
     #todo check for instruction format: even, repeating indeces
+
     generators={}
+    new_instructions = []
 
-    for angle_idx, fermionic_group in enumerate(instructions):
+    for exct in instructions:
+        aux =[]
+        for indicies in exct:
+            aux.append(indicies[0])
+            aux.append(indicies[1])
+        aux = [tuple(aux)]
+        new_instructions.append(aux)
+    instructions = new_instructions
 
-        for x in fermionic_group:
-            if len(fermionic_group[0]) != len(x):
-                raise TequilaException("Trying to assign same angles to different type generators")
-        # if ((len(fermionic_group[0]) != len(x)) for x in fermionic_group):
-        #     raise TequilaException("Trying to assign same angles to different type generators") # needeed ?
-        for fermionic_circuit in fermionic_group:
-            if angle_idx in generators:
-                generators[angle_idx] = generators[angle_idx] + make_excitation_generator_op(indices=fermionic_circuit)
-            else:
-                generators[angle_idx] = make_excitation_generator_op(indices=fermionic_circuit)
+
+    for angle_idx, fermionic_circuit in enumerate(instructions):
+        # todo checks
+        if angles[angle_idx] in generators:
+            generators[angles[angle_idx]] = generators[angles[angle_idx]] + make_excitation_generator_op(indices=fermionic_circuit[0])
+        else:
+            generators[angles[angle_idx]] = make_excitation_generator_op(indices=fermionic_circuit[0])
 
     return generators
 
