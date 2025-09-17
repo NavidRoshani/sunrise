@@ -38,11 +38,11 @@ class input_state:
             self.wavefunction = tq.compile(self.circuit)(variables)
         return self.wavefunction
 
-def gates_to_orb_rot(rotation_circuit, dim, isReordered=False):
+def gates_to_orb_rot(rotation_circuit:tq.QCircuit, dim:int, isReordered:bool=False,core:int=0)->np.array:
     """
-    rotation_circuit: a circuit with UR gates
+    rotation_circuit: a circuit with ONLY UR gates
     dim: the dimension of the spatial orbital space, i.e., the number of orbitals
-
+    core: number of core orbitals, already counted on dim. This is bcs these core orbitals are not included on the UR qubit count
     Output: a matrix that rotates the orbital coefficients
     """
 
@@ -51,7 +51,8 @@ def gates_to_orb_rot(rotation_circuit, dim, isReordered=False):
     indices = []
     for gate in reversed(rotation_circuit.gates):
         params.append(gate.parameter)
-        indices.append(gate.indices)
+        g = gate.indices
+        indices.append(tuple([i+core+core*(not isReordered) for i in idx]))
 
     # Select only odd values
     # Because UR gates rotate molecular orbitals 
