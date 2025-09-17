@@ -51,8 +51,10 @@ def gates_to_orb_rot(rotation_circuit:tq.QCircuit, dim:int, isReordered:bool=Fal
     indices = []
     for gate in reversed(rotation_circuit.gates):
         params.append(gate.parameter)
-        g = gate.indices
-        indices.append(tuple([i+core+core*(not isReordered) for i in idx]))
+        g = []
+        for idx in gate.indices:
+            g.append(tuple([i+core+core*(not isReordered) for i in idx]))
+        indices.append(g)
 
     # Select only odd values
     # Because UR gates rotate molecular orbitals 
