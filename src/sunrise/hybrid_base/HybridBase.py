@@ -935,6 +935,7 @@ class HybridBase(qc_base):
             return rdm2
         else:
             warnings.warn("compute_rdms called with instruction to not compute?", TequilaWarning)
+    
     def optimize_orbitals(self,molecule, circuit:QCircuit=None, vqe_solver=None, pyscf_arguments=None, silent=False, vqe_solver_arguments=None, initial_guess=None, return_mcscf=False, use_hcb = False, molecule_factory=None,molecule_arguments=None ,restrict_to_active_space = True,*args, **kwargs):
         """
         Interface with tq.quantumchemistry.optimize_orbitals
@@ -1030,6 +1031,7 @@ class HybridBase(qc_base):
         integral_manager.transform_orbitals(U=U, name=name)
         result = HybridBase(parameters=self.parameters, integral_manager=integral_manager, transformation=self.transformation, select=self.select, two_qubit=self.two_qubit, condense=self.condense, integral_tresh=self.integral_tresh)
         return result
+    
     # Cicuit Related Functions
     def verify_excitation(self, indices: typing.Iterable[typing.Tuple[int, int]], warning:bool=True)->bool:
         """
@@ -1296,8 +1298,8 @@ class HybridBase(qc_base):
                           "Non-standard transformations might not work with general fermionic operators\n"
                           "indices = " + str(indices), category=TequilaWarning)
         return qop.simplify()
-    #Ansatzs and Algorithm
 
+    #Ansatzs and Algorithm
     def prepare_reference(self, state=None, *args, **kwargs):
         """
         Returns
@@ -1314,6 +1316,7 @@ class HybridBase(qc_base):
         else:
             U.n_qubits = len(self.FER_SO) + len(self.BOS_MO)   # adapt when tapered transformations work
         return U
+    
     def prepare_hardcore_boson_reference(self):
         """
         Prepare reference state in the Hardcore-Boson approximation (eqch qubit represents two spin-paired electrons)
@@ -1325,6 +1328,7 @@ class HybridBase(qc_base):
         U = gates.X(target=[pos[2*i.idx] for i in self.reference_orbitals])
         U.n_qubits = self.n_orbitals
         return U
+    
     def make_ansatz(self, name: str, *args, **kwargs)->QCircuit:
         """
         Automatically calls the right subroutines to construct ansatze implemented in tequila.chemistry
@@ -1624,6 +1628,7 @@ class HybridBase(qc_base):
                                            spin_adapt_singles=spin_adapt_singles, angle_transform=angle_transform,
                                            neglect_z=neglect_z)
         return U
+    
     def make_upccgsd_singles(self, indices="UpCCGSD", spin_adapt_singles=True, label=None, angle_transform=None,
                              assume_real=True, neglect_z=False,*args, **kwargs):
         if neglect_z and "jordanwigner" not in self.transformation.name.lower():
@@ -1668,6 +1673,7 @@ class HybridBase(qc_base):
                                                        assume_real=assume_real, **kwargs)
 
         return U
+    
     def make_hardcore_boson_excitation_gate(self, indices, angle, control=None, assume_real=True,
                                             compile_options="optimize"):
         """
@@ -1698,6 +1704,7 @@ class HybridBase(qc_base):
             raise TequilaException(
                 "make_hardcore_boson_excitation_gate: Inconsistencies in indices={} for encoding: {}".format(indices, self.transformation))
         return gates.QubitExcitation(angle=angle, target=target, assume_real=assume_real, control=control,compile_options=compile_options)
+    
     def hcb_to_me(self,**kwargs):
         return self.transformation.hcb_to_me(**kwargs)
 
@@ -1727,6 +1734,7 @@ class HybridBase(qc_base):
             return self.compute_restricted_energy(method,*args,**kwargs)
         else:
             return super().compute_energy(method,*args,**kwargs)
+    
     def compute_restricted_energy(self, method:str, *args, **kwargs):
         """
             Call classical methods over PySCF (needs to be installed) or
@@ -1781,6 +1789,41 @@ class HybridBase(qc_base):
         parameters = copy.deepcopy(self.parameters)
         return mol(parameters=parameters,one_body_integrals=h,two_body_integrals=g,nuclear_repulsion=c,backend='pyscf',transformation=self.transformation.name,n_electrons=self.n_electrons).compute_energy(method=method, *args,**kwargs)
 
+    def get_restricted_integrals(self, *args, **kwargs):
+        c, h, g = self.get_integrals()
+        BOS_L = self.BOS_MO
+        NBOS_L = self.FER_MO
+        for i in BOS_L:
+            for j in BOS_L:
+                if i != j:
+                    h[i][j] = 0.
+        for i in BOS_L:
+            for j in NBOS_L:
+                h[i][j] = 0.
+                h[j][i] = 0.
+        new_g = numpy.zeros(shape=(len(g.elems), len(g.elems), len(g.elems), len(g.elems)))
+        for i in NBOS_L:
+            for j in NBOS_L:
+                for k in NBOS_L:
+                    for l in NBOS_L:
+                        new_g[i][j][k][l] = g.elems[i][j][k][l]
+        for i in BOS_L:
+            for j in BOS_L:
+                new_g[i][i][j][j] = g.elems[i][i][j][j]
+                new_g[i][j][j][i] = g.elems[i][j][j][i]
+                new_g[i][j][i][j] = g.elems[i][j][i][j]
+        for i in NBOS_L:
+            for j in NBOS_L:
+                for k in BOS_L:
+                    new_g[i][j][k][k] = g.elems[i][j][k][k]
+                    new_g[k][k][i][j] = g.elems[k][k][i][j]
+                    new_g[i][k][k][j] = g.elems[i][k][k][j]
+                    new_g[k][i][j][k] = g.elems[k][i][j][k]
+                    new_g[i][k][j][k] = g.elems[i][k][j][k]
+                    new_g[k][i][k][j] = g.elems[k][i][k][j]
+        g.elems = new_g
+        return c,h,g
+
     def get_xyz(self)->str:
         geom = self.parameters.get_geometry()
         f = ''
@@ -1792,10 +1835,12 @@ class HybridBase(qc_base):
 
     def graph(self):
         return Graph.parse_xyz(self.get_xyz())
+    
     def get_spa_edges(self,collapse:bool=True,strip_orbitals:bool=None):
         if strip_orbitals  is None:
             strip_orbitals = not self.integral_manager.active_space_is_trivial()
         return self.graph().get_spa_edges(collapse=collapse,strip_orbitals=strip_orbitals)
+    
     def get_spa_guess(self,strip_orbitals:bool=None):
         if strip_orbitals  is None:
             strip_orbitals = not self.integral_manager.active_space_is_trivial()
