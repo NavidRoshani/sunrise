@@ -304,34 +304,46 @@ class HybridBase(qc_base):
             return symm_orthog.dot(c).T
 
         def get_active(core):
-            ov = numpy.zeros(shape=(len(core),len(self.integral_manager.orbitals)))
-            for i,idx in enumerate(core):
+            ov = numpy.zeros(shape=(len(self.integral_manager.orbitals)))
+            for i in core:
                 for j in range(len(d)):
-                    ov[i,j] += numpy.abs(inner(c.T[idx], d.T[j], s)) 
+                    ov[j] += numpy.abs(inner(c.T[i], d.T[j], s))
             act = []
-            i = 0
-            while len(act)<(len(self.integral_manager.orbitals) - len(core)):
-                idx = numpy.argmin(ov[i])
+            for i in range(len(self.integral_manager.orbitals) - len(core)):
+                idx = numpy.argmin(ov)
                 act.append(idx)
-                ov[i,idx] = 1 * len(core)
-                i = (i+1)%len(core)
-            act.sort() 
+                ov[idx] = 1 * len(core)
+            act.sort()
             return act
 
         def get_core(active):
-            ov = numpy.zeros(shape=(len(active),len(self.integral_manager.orbitals)))
-            for i,idx in enumerate(active):
+            ov = numpy.zeros(shape=(len(self.integral_manager.orbitals)))
+            for i in active:
                 for j in range(len(d)):
-                    ov[i,j] += numpy.abs(inner(d.T[idx], c.T[j], s))
+                    ov[j] += numpy.abs(inner(d.T[i], c.T[j], s))
             co = []
-            i = 0
-            while len(co) < (len(self.integral_manager.orbitals) - len(active)):
-                idx = numpy.argmin(ov[i])
+            for i in range(len(self.integral_manager.orbitals) - len(active)):
+                idx = numpy.argmin(ov)
                 co.append(idx)
-                ov[i,idx] = 1 * len(active)
-                i = (i+1)%len(core)
+                ov[idx] = 1 * len(active)
             co.sort()
             return co
+
+        def active_to_active(active):
+            '''
+            translates active indices from canonical/the original basis to the native coeffs
+            '''
+            ov = numpy.zeros(shape=(len(self.integral_manager.orbitals)))
+            for i in active:
+                for j in range(len(d)):
+                    ov[j] += numpy.abs(inner(c.T[i], d.T[j], s))
+            act = []
+            for i in range(len(active)):
+                idx = numpy.argmax(ov)
+                act.append(idx)
+                ov[idx] = 0.
+            act.sort()
+            return act
 
         active = None
         if "active" in kwargs:
@@ -342,8 +354,9 @@ class HybridBase(qc_base):
         else:
             if core is None:
                 if not self.integral_manager.active_space_is_trivial():
+                    active = [i.idx_total for i in self.integral_manager.orbitals if i.idx is not None]
+                    active = active_to_active(active)
                     core = [i.idx_total for i in self.integral_manager.orbitals if i.idx is None]
-                    active = get_active(core)
                 else:
                     core = []
                     active = [i for i in range(len(self.integral_manager.orbitals))]
