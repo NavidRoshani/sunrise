@@ -51,8 +51,9 @@ def from_tequila(molecule:QuantumChemistryBase,**kwargs)->pyscf.gto.Mole: #TODO:
 def MoleculeFromPyscf(molecule:Mole,mo_coeff:ndarray|None=None,transformation:str|Callable=None,active_orbitals:list=None,frozen_orbitals:list=None,*args,**kwargs)->QuantumChemistryBase:
     
     geo = ''
-    for at in molecule.atom:
-        geo += f'{"".join([i for i in at[0] if i.isalpha()])} {at[1][0]} {at[1][1]} {at[1][2]}\n'
+    for i in  range(len(molecule.atom_coords())):
+            c = molecule.atom_coord(i,unit="UA")
+            geo += f'{molecule.atom_symbol(i)} {c[0]} {c[1]} {c[2]}\n'
     if len(molecule.basis):
         basis = molecule.basis
     elif 'basis_set' in kwargs: #when reading molden files, the basis name is lost
@@ -76,9 +77,9 @@ def MoleculeFromPyscf(molecule:Mole,mo_coeff:ndarray|None=None,transformation:st
     else: orbital_energies = [*range(molecule.nao)]
     if mo_coeff is None:
         mf =pyscf.scf.RHF(molecule)
+        mf.kernel()
         mo_coeff = mf.mo_coeff
         orbital_energies = mf.mo_energy #would be weird to provide orbital energies but not mo_coeff
-    
     if molecule.irrep_name is not None:
         irreps = pyscf.symm.label_orb_symm(molecule, molecule.irrep_name, molecule.symm_orb, mo_coeff).tolist()
     else: irreps = ['a1' for _ in range(len(mo_coeff))]
