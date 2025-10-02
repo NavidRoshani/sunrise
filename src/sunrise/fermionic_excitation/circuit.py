@@ -1,12 +1,12 @@
 from __future__ import annotations
 from tequila.circuit._gates_impl import assign_variable
-from tequila.circuit.gates import QubitExcitationImpl
-from tequila.circuit.gates import X
+from tequila.circuit.gates import QubitExcitationImpl,X,Phase
 from tequila import Variable
 from tequila.quantumchemistry.chemistry_tools import FermionicGateImpl
+from tequila.quantumchemistry.qc_base import QuantumChemistryBase
 from tequila.utils.exceptions import TequilaException, TequilaWarning
 from tequila import assign_variable,QCircuit,QubitWaveFunction,simulate
-import typing
+from typing import List,Union,Iterable,Optional
 import copy
 from collections import defaultdict
 from numpy import ndarray
@@ -128,7 +128,7 @@ class FCircuit:
         return len(self.gates)
 
     @property
-    def gates(self)->typing.List(sunrise.fermionic_excitation.fgateimpl.FGateImpl):
+    def gates(self)->List[sunrise.fermionic_excitation.fgateimpl.FGateImpl]:
         if self._gates is None:
             return []
         else:
@@ -169,6 +169,8 @@ class FCircuit:
     def variables(self)->list:
         v = []
         for gate in self.gates:
+            if gate._name == 'UR':
+                v.append(gate.variables)
             v.append(gate.variables)
         return v
 
@@ -187,7 +189,6 @@ class FCircuit:
                 variables = gate.extract_variables()
                 for variable in variables:
                     parameter_map[variable] += [(idx, gate)]
-
         return parameter_map
 
     def is_primitive(self):
@@ -236,7 +237,7 @@ class FCircuit:
             # failsafe
             if hasattr(circuit, "gates"):
                 gatelist = circuit.gates
-            elif isinstance(circuit, typing.Iterable):
+            elif isinstance(circuit, Iterable):
                 gatelist = circuit
             else:
                 gatelist = [circuit]
@@ -449,7 +450,7 @@ class FCircuit:
         return cls(gates=operations._gates,initial_state=reference)
 
     @classmethod
-    def from_edges(cls,edges:typing.Union[list,tuple],label=None,n_orb:int|None=None):
+    def from_edges(cls,edges:Union[list,tuple],label=None,n_orb:int|None=None):
         operations = FCircuit()
         if n_orb is not None:
             include_reference = True
@@ -554,11 +555,27 @@ class FCircuit:
     def to_matrix(self, variables=None): #TODO:  Should we?
         pass 
 
-    def add_controls(self, control, inpl: typing.Optional[bool] = False) -> typing.Optional[FCircuit]: #TODO
+    def add_controls(self, control, inpl: Optional[bool] = False) -> Optional[FCircuit]: #TODO
         pass 
       
-    def to_circuit(self,molecule) -> QCircuit: #TODO
-        pass
+    def to_qcircuit(self,molecule:QuantumChemistryBase) -> QCircuit: #TODO
+        U = deepcopy(self)
+        if molecule.transformation.up_then_down:
+            U = U.to_upthendown(molecule.n_orbitals)
+        else:
+            U = U.to_udud(molecule.n_orbitals)
+        res = QCircuit()
+        for gate in U.gates:
+            if gate.name == 'UR':
+                res += molecule.make_excitation_gate(indices=gate.indices[0],angle=gate.variables)#TODO: Control
+                res += molecule.make_excitation_gate(indices=gate.indices[1],angle=gate.variables)#TODO: Control
+            elif gate.name in ['UC', 'FermionicExcitation', 'GenericFermionic']:
+                res += molecule.make_excitation_gate(indices=gate.indices[0],angle=gate.variables)#TODO: Control
+            elif gate.name == 'Ph':
+                res +=  Phase(target=[0][0],angle=gate.variables)  #TODO: Control
+            else:
+                raise TequilaException(f'Gate {gate} not idenified')
+        return res
 
 if __name__ == '__main__':
     import tequila as tq
