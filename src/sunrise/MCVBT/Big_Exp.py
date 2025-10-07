@@ -1,10 +1,12 @@
 
 from sunrise.expval.fqe_expval import FQEBraKet
 from tequila.quantumchemistry import QuantumChemistryBase
+from sunrise.MCVBT.QulacsBraKet import BraKetQulacs
+
 
 class BigExpVal:
 
-    def __init__(self, circuits, coefficcents, mol:QuantumChemistryBase, solver):
+    def __init__(self, circuits, coefficcents, mol:QuantumChemistryBase, solver, **kwargs):
 
         self.n = len(circuits)
 
@@ -14,12 +16,16 @@ class BigExpVal:
             tmp1 = []
             tmp2 = []
             for j in range(i+1):
-                if solver == "tcc":
-                    pass
-                elif solver == "openfermion":
+                if solver == "TCC":
+                    raise NotImplementedError
+                elif solver == "FQE":
                     xEE = FQEBraKet(ket_fcircuit=circuits[j], bra_fcircuit=circuits[i], molecule=mol)
                     xSS = FQEBraKet(ket_fcircuit=circuits[j], bra_fcircuit=circuits[i],
                                     n_orbitals=mol.n_orbitals, n_ele=mol.n_electrons)
+                elif solver == "Qulacs":
+                    H = kwargs["H"]
+                    xEE = BraKetQulacs(circuits[i], circuits[j], H=H)
+                    xSS = BraKetQulacs(circuits[i], circuits[j], H=None)
                 else:
                     raise ValueError("Unknown solver {}".format(solver))
                 tmp1.append(xEE)
@@ -53,7 +59,7 @@ class BigExpVal:
         for i in range(self.n):
             f+=self.EE[i][i](values)*c[i]**2
             s+=c[i]**2
-            for j in range(i+1):
+            for j in range(i):
                f+=2.0*self.EE[i][j](values)*c[i]*c[j]
                s+=2.0*self.SS[i][j](values)*c[i]*c[j]
 
