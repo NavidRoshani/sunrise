@@ -74,7 +74,10 @@ class FGateImpl:
             self._indices = [self._indices,] #->[[(0,2),(1,3)],]
         elif not isinstance(self._indices[0][0][0],numbers.Number): #[[(0,2),(1,2)]]
             raise TequilaException(f'Indices formating not recognized, received {self._indices}')
-        assert len(self._variables) == len(self._indices)
+        if isinstance(self._variables,FixedVariable):
+            assert 1 == len(self._indices) 
+        else:
+            assert len(self._variables) == len(self._indices)
 
     @property
     def qubits(self):
@@ -135,7 +138,10 @@ class URImpl(FGateImpl):
             self._indices = [self._indices,] #->[[(0,2),(1,3)],]
         elif not isinstance(self._indices[0][0][0],numbers.Number): #[[(0,2),(1,2)]]
             raise TequilaException(f'Indices formating not recognized, received {self._indices}')
-        assert 2*len(self._variables) == len(self._indices)
+        if isinstance(self._variables,FixedVariable):
+            assert 2 == len(self._indices) 
+        else:
+            assert 2*len(self._variables) == len(self._indices)
 
 class UCImpl(FGateImpl):
     def __init__(self,i,j, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None):
