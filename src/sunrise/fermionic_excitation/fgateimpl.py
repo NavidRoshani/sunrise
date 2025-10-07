@@ -57,7 +57,7 @@ class FGateImpl:
     
     def extract_variables(self)->list[Variable]:
         if isinstance(self.variables,FixedVariable):
-            return self.variables
+            return [self.variables]
         return self.variables.extract_variables()
 
     @property
