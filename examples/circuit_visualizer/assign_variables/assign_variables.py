@@ -1,11 +1,12 @@
 import sunrise as sun
 from math import pi
+from sunrise.graphical import *
 
-circuit = sun.GraphicalCircuit([
-    sun.SingleExcitation(0, 2, angle="a"),
-    sun.SingleExcitation(0, 2, angle="b"),
-    sun.SingleExcitation(0, 2, angle="c"),
-    sun.SingleExcitation(0, 2, angle="d"),
+circuit = GraphicalCircuit([
+    SingleExcitation(0, 2, angle="a"),
+    SingleExcitation(0, 2, angle="b"),
+    SingleExcitation(0, 2, angle="c"),
+    SingleExcitation(0, 2, angle="d"),
 ])
 circuit.export_qpic(filename="before_assignment")
 # sun.qpic_to_pdf("all_gates_example")

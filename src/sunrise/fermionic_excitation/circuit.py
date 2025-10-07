@@ -85,7 +85,7 @@ class FCircuit:
             n_qubits_is_double = kwargs['n_qubits_is_double']
             kwargs.pop('n_qubits_is_double')
         else: n_qubits_is_double = False
-        gU = sunrise.GraphicalCircuit.from_circuit(U=U, n_qubits_is_double=n_qubits_is_double)
+        gU = sunrise.graphical.GraphicalCircuit.from_circuit(U=U, n_qubits_is_double=n_qubits_is_double)
         gU.export_to(filename=filename,*args,**kwargs)
         
 
