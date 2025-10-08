@@ -94,7 +94,6 @@ class EXPVAL(UCC):
         run_mp2=run_mp2,
         run_ccsd=run_ccsd,
         run_fci=run_fci)
-        
         # circuit related
         self._init_state_bra = None
         self._init_state_ket = None
@@ -441,14 +440,17 @@ class EXPVAL(UCC):
         self._sanity_check()
         params = self._check_params_argument(params)
         self._check_engine(engine)
+        d = {self.var_to_param[self.total_variables[i]]:params[i] for i in range(len(params))}
         if engine is None:
             engine = self.engine
         if ket:
             ex_ops  = self.ex_ops_ket
-            init_state = self.init_state_ket
+            init_state = self.init_state_ket 
+            params = [map_variables(p,d) for p in self.variables_ket]
         else:
             ex_ops  = self.ex_ops_bra
             init_state = self.init_state_bra
+            params = [map_variables(p,d) for p in self.variables_bra]
         civector = get_civector(
             params, self.n_qubits, self.n_elec_s, ex_ops,[*range(len(ex_ops))], self.mode, init_state, engine
         )
@@ -799,8 +801,7 @@ class EXPVAL(UCC):
     def params(self) -> Tensor:
         """The circuit parameters."""
         return self.params_bra , self.params_ket
-
-    
+  
     @params_bra.setter
     def params_bra(self, params_bra=None):
         if params_bra is not None:
@@ -810,11 +811,13 @@ class EXPVAL(UCC):
                 if isinstance(j,Variable):
                     var_bra.append(j)
                     params_bra[i]= j.name
+                elif isinstance(j,FixedVariable):
+                    var_bra.append(j)
                 elif isinstance(j,Objective):
                     var_bra.append(j)
-                    params_bra[i] = str(self.ex_ops_bra[i])
+                    params_bra[i] = f'f({j.extract_variables()})'
                 else:
-                    var_bra.append(Variable(j))
+                    var_bra.append(assign_variable(j))
             self._params_bra = params_bra
             self._variables_bra = var_bra
 
@@ -829,14 +832,11 @@ class EXPVAL(UCC):
                     params_ket[i]= j.name
                 elif isinstance(j,FixedVariable):
                     var_ket.append(j)
-                    # params_ket[i]= j
                 elif isinstance(j,Objective):
                     var_ket.append(j)
                     params_ket[i] = f'f({j.extract_variables()})'
                 else:
                     var_ket.append(assign_variable(j))
-                    # params_ket.append(assign_variable(j).name)
-                    # # var_ket.append(Variable(f"{str(j)}"))
             self._params_ket = params_ket
             self._variables_ket = var_ket
     
@@ -847,6 +847,7 @@ class EXPVAL(UCC):
 
     @property 
     def param_to_ex_ops_bra(self):
+        if self.params_bra is None: return {}
         d = defaultdict(list)
         for i, j in enumerate(self.params_bra):
             d[j].append(self.ex_ops_bra[i])
@@ -855,17 +856,16 @@ class EXPVAL(UCC):
     @property
     def param_to_ex_ops_ket(self):
         d = defaultdict(list)
-        c = self.n_params_bra
-        for i, j in enumerate(self.param_ket):
-            d[j+c].append(self.ex_ops_ket[i])
+        for i, j in enumerate(self.params_ket):
+            d[j].append(self.ex_ops_ket[i])
         return d
     
     @property
     def param_to_ex_ops(self):
-        d = self.param_to_ex_ops_bra
-        for i,j in enumerate(self.param_ket):
-            d[j+self.n_params_bra].append(self.ex_ops_ket[i])
-        return d 
+        db = self.param_to_ex_ops_bra if self.params_bra is not None else {}
+        dk = self.param_to_ex_ops_ket
+        db.update(dk)
+        return db
     
     @property
     def n_variables(self) -> int:
@@ -880,7 +880,7 @@ class EXPVAL(UCC):
         return len(Objective(self.variables_ket).extract_variables())
 
     @property
-    def variables_ket(self) -> dict|None:
+    def variables_ket(self) -> List[Variable]:# dict|None:
         return self._variables_ket
 
     @property
@@ -930,11 +930,9 @@ class EXPVAL(UCC):
     
     @property
     def var_to_param(self):
-        d = deepcopy(self.var_to_param_bra)
-        if d is not None:
-            d.update(deepcopy(self.var_to_param_ket))
-        else: d = self.var_to_param_ket           
-        return d
+        if self.var_to_param_bra is None:
+            return self.var_to_param_ket
+        else: return self.var_to_param_bra.update(self.var_to_param_ket)
 
     @property
     def total_variables(self) -> list[Variable] | None   :
@@ -958,7 +956,7 @@ class EXPVAL(UCC):
     def init_guess(self,init_guess):
         self._init_guess = init_guess
 
-def map_variables(x:list[Variable,Objective],dvariables:dict):
+def map_variables(x:Variable|Objective,dvariables:dict):
     if isinstance(x,Variable):
         x = x.map_variables(dvariables)
     elif isinstance(x,Objective):

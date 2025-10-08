@@ -1,22 +1,22 @@
 import tencirchem as tcc
 from sunrise.expval.tcc_engine.braket import EXPVAL
 from ..fermionic_excitation.circuit import FCircuit
-from tequila import TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective,assign_variable
+from tequila import TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective,assign_variable,grad
 from tequila.objective.objective import Variables,FixedVariable
 from tequila.quantumchemistry.chemistry_tools import NBodyTensor
 from tequila.quantumchemistry import qc_base
 from tequila.utils.bitstrings import BitString
 from numbers import Number
-from numpy import array,ceil,argwhere
+from numpy import ceil,argwhere,pi,prod,eye
 from pyscf.gto import Mole
+from pyscf.scf import RHF
 from sunrise.expval.pyscf_molecule import from_tequila
 from copy import deepcopy
-from typing import Any, Union
-#assumed to be installed pyscf since dependency for sunrise and tcc
+from typing import Union,List,Tuple
+from collections import defaultdict
 
 class TCCBraket:
     def __init__(self,bra:FCircuit|None=None,ket:FCircuit|None=None,backend_kwargs:dict|None={},*args,**kwargs):
-
         if 'engine' in backend_kwargs:
             engine = backend_kwargs['engine']
             backend_kwargs.pop('engine')
@@ -41,23 +41,27 @@ class TCCBraket:
             molecule = kwargs['molecule']
             kwargs.pop('molecule')
             if isinstance(molecule,qc_base.QuantumChemistryBase):
+                mo_coeff = molecule.integral_manager.orbital_coefficients 
                 aslst = [i.idx_total for i in molecule.integral_manager.active_orbitals]
                 active_space = (molecule.n_electrons,molecule.n_orbitals)
                 molecule = from_tequila(molecule)
             elif isinstance(molecule,Mole):
+                mf = RHF(mol=molecule)
+                mo_coeff =mf.mo_coeff
                 aslst = [*range(molecule.nao_nr_range)]
                 active_space = (molecule.nelectron,molecule.nao_nr)
-            self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",aslst=aslst,active_space=active_space,engine=engine,**backend_kwargs)
+            self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",aslst=aslst,active_space=active_space,engine=engine,mo_coeff=mo_coeff,**backend_kwargs)
         elif 'integral_manager' in kwargs and 'parameters' in kwargs:
             integral = kwargs['integral_manager']
             params = kwargs['parameters']
             kwargs.pop('integral_manager')
             kwargs.pop('parameters')
+            mo_coeff = integral.orbital_coefficients
             molecule = Molecule(parameters=params,integral_manager=integral)
             aslst = [i.idx_total for i in integral.active_orbitals]
             active_space = (molecule.n_electrons,molecule.n_orbitals)
             molecule = from_tequila(molecule)
-            self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, aslst=aslst,active_space=active_space,run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",**backend_kwargs)
+            self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, aslst=aslst,active_space=active_space,run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",mo_coeff=mo_coeff,**backend_kwargs)
         else:
             int1e = None
             int2e = None
@@ -90,16 +94,20 @@ class TCCBraket:
             elif 'constant_term' in kwargs:
                 e_core = kwargs['constant_term']
                 kwargs.pop('constant_term')
+            elif 'constant' in kwargs:
+                e_core = kwargs['constant']
+                kwargs.pop('constant')
             elif 'c' in kwargs:
                 e_core = kwargs['c']
                 kwargs.pop('c')    
             else: e_core = 0.
-            if 'mo_coeff' in kwargs:
-                mo_coeff = kwargs['mo_coeff']
-                kwargs.pop('mo_coeff')
-            elif 'orbital_coefficients' in kwargs:
-                mo_coeff = kwargs['orbital_coefficients']
-                kwargs.pop('orbital_coefficients')
+            # if 'mo_coeff' in kwargs:
+            #     mo_coeff = kwargs['mo_coeff']
+            #     kwargs.pop('mo_coeff')
+            # elif 'orbital_coefficients' in kwargs:
+            #     mo_coeff = kwargs['orbital_coefficients']
+            #     kwargs.pop('orbital_coefficients')
+            mo_coeff = eye(len(int1e)) #IDEA The intengrals refer to the MO, so the active space stuff is kept out of the braket 
             if 'ovlp' in kwargs:
                 ovlp = kwargs['ovlp']
                 kwargs.pop('ovlp')
@@ -127,37 +135,14 @@ class TCCBraket:
             else:
                 raise TequilaException('Not enough molecular data provided')
 
-        if bra is not None and bra.initial_state is not None: #init state initialization splitted bcs we need BK structe, but we get info to initialize BK from init state
-            ini_bra = init_state_from_wavefunction(bra.initial_state)
-            for i in ini_bra:
-                i[0] = self.BK.get_addr(i[0])
-            init = [0] * self.BK.civector_size
-            for i in ini_bra:
-                init[i[0]] = i[1]
-            self.init_state_bra = init
-        if ket is not None and ket.initial_state is not None: #TCC builds HF if None provided
-            ini_ket = init_state_from_wavefunction(ket.initial_state)
-            for i in ini_ket:
-                i[0] = self.BK.get_addr(i[0])
-            init = [0] * self.BK.civector_size
-            for i in ini_ket:
-                init[i[0]] = i[1]
-            self.init_state_ket = init
-        
-
-
-        if ket is not None and ket.variables is not None:
-            self.variables_ket = ket.variables
-        if bra is not None and bra.variables is not None:
-            self.variables_bra = bra.variables
-
         if ket is not None:
-            ket = ket.to_upthendown(len(self.BK.aslst))
-            self.ket = ket.extract_indices()
+            self.ket = ket
         if bra is not None:
-            bra = bra.to_upthendown(len(self.BK.aslst))
-            self.bra = bra.extract_indices() 
-        self.opt_res = {}
+            self.bra = bra 
+        self.opt_res = defaultdict(None)
+        if 'name' in kwargs:
+            self._name = kwargs['name']
+        else: self._name = 'Expectation Value' if self.is_diagonal else "Transition Value"
         
     def minimize(self,**kwargs)->float:
         if 'init_guess_bra' in kwargs:
@@ -175,35 +160,134 @@ class TCCBraket:
             self.opt_res['e'] = e
             return e
 
-    def __call__(self, params:Union[list,dict]={}) -> float:
-        return self.simulate(params=params)
+    def __call__(self, variables:Union[list,dict]={}, *args, **kwargs) -> float:
+        return self.simulate(variables=variables)
 
-    def simulate(self,params:Union[list,dict])->float:
-        if isinstance(params,Variables):
-            params = params.store
-        if isinstance(params,dict):
+    def simulate(self,variables:Union[list,dict])->float:
+        if isinstance(variables,Variables):
+            variables = variables.store
+        if isinstance(variables,dict):
             v: dict = deepcopy(self.variables)
-            v.update(params)
+            if v is None:
+                v = variables
+            else:
+                v.update(variables)
             tvars: list = deepcopy(self.BK.total_variables)
-            params:list = [map_variables(x,v) for x in tvars]
-        params:list = [-i/2 for i in params] #Here translation 
-        return self.BK.expval(angles=params)
+            variables:list = [map_variables(x,v) for x in tvars]
+        return self.BK.expval(angles=[-i/2 for i in variables])
 
     def extract_variables(self) -> list:
         """
         Extract all variables on which the objective depends
         :return: List of all Variables
         """
-        variables = deepcopy(self.variables)
-        variables = {d:variables[d] for d in variables.keys() if not isinstance(d,FixedVariable)}
-        # remove duplicates without affecting ordering
-        # allows better reproducibility for random initialization
-        # won't work with set
+        v = []
+        for d in self.params:
+            if isinstance(d,FixedVariable):
+                continue
+            elif hasattr(d,'extract_variables'):
+                v.extend(d.extract_variables())
+            else:
+                v.extend(d)
         unique = []
-        for i in variables:
+        for i in v:
             if i not in unique:
                 unique.append(i)
         return unique
+
+    def grad(self,variable:Variable = None)->Objective:
+        def apply_phase(braket: TCCBraket,exct:List[Tuple[int]],variable,ket:bool=True,p0sign:bool=True)->Objective:
+            '''
+            braket: TCC object to modify
+            exct: Excitation indices on the tequila format [(0,2),(1,3),...] to which 
+                  apply the phase shift.
+            ket: If true it will be applied the phase on the ket side, bra otherwise
+            posing: it True: +pi, False: -Pi, correspond to the U0(\pm) not the actual sign implementation
+            '''
+            p0 = []
+            s = {True:+1,False:-1} 
+
+            for idx in exct:
+                p0.append((idx[0],idx[0]))
+                p0.append((idx[1],idx[1]))
+            if ket:
+                if braket.is_diagonal: 
+                    braket._name = 'Gradient'
+                    k = deepcopy(braket.ket)
+                    v = deepcopy(braket.params_ket)
+                    braket.bra = k
+                    braket.variables_bra = v
+                    idx = k.index(exct)
+                    ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
+                    v[idx] +=  s[ket]*pi 
+                    for p in reversed(p0):
+                        k.insert(idx,[p])
+                        v.insert(idx,assign_variable(s[not p0sign]*pi))
+                    braket.ket = k
+                    braket.variables_ket = v
+
+                else:
+                    braket._name = 'Gradient'
+                    k = deepcopy(braket.ket)
+                    v = deepcopy(braket.params_ket)
+                    idx = k.index(exct)
+                    ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
+                    v[idx] +=  s[ket]*pi  
+                    for p in reversed(p0):
+                        k.insert(idx,[p])
+                        v.insert(idx,assign_variable(s[not p0sign]*pi)) 
+                    braket.ket = k
+                    braket.variables_ket = v
+            else: 
+                if braket.is_diagonal: 
+                    braket._name = 'Gradient'
+                    k = deepcopy(braket.ket)
+                    v = deepcopy(braket.params_ket)
+                    idx = k.index(exct)
+                    ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
+                    v[idx] +=  s[ket]*pi  
+                    for p in reversed(p0):
+                        k.insert(idx,[p])
+                        v.insert(idx,assign_variable(s[not p0sign]*pi)) 
+                    braket.bra = k
+                    braket.variables_bra = v
+                else:
+                    braket._name = 'Gradient'
+                    k = deepcopy(braket.bra)
+                    v = deepcopy(braket.params_bra)
+                    idx = k.index(exct)
+                    ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
+                    v[idx] +=  s[ket]*pi  
+                    for p in reversed(p0):
+                        k.insert(idx,[p])
+                        v.insert(idx,assign_variable(s[not p0sign]*pi)) 
+                    braket.bra = k
+                    braket.variables_bra = v
+            return s[ket]*s[(len(p0)//2)%2]*s[p0sign]*ph*Objective([braket]) #TODO: Check this correct
+        if variable is None:
+            # None means that all components are created
+            variables = self.extract_variables()
+            result = {}
+
+            if len(variables) == 0:
+                raise TequilaException("Error in gradient: Objective has no variables")
+
+            for k in variables:
+                assert k is not None
+                result[k] = self.grad(k)
+            return result
+        else:
+            variable = assign_variable(variable)
+        if variable not in self.extract_variables():
+            return 0.
+        ex_ops = self.param_to_ex_ops[variable]
+        g = 0
+        for exct in ex_ops:
+            g += apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=True)
+            g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=False)
+            g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=False,p0sign=True)
+            g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=False,p0sign=False)
+        return 0.25*g
 
     @property
     def energy(self)->float:
@@ -217,34 +301,60 @@ class TCCBraket:
         """
         Excitation operators applied to the bra.
         """
-        return self.BK.ex_ops_bra 
+        return indices_tcc_to_tq(self.BK.ex_ops_bra)  
     
     @bra.setter
-    def bra(self, bra):
+    def bra(self, bra:Union[List[List[Tuple[int]]],FCircuit]):
         '''
-        Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (Upthendown order)
+        Expected FCircuit or indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (Upthendown order)
         '''
-        bra,params_bra,_ = translate_indices(bra)
-        if self.variables_bra is None:
-            self.variables_bra = params_bra
-        self.BK.ex_ops_bra = bra
+        if isinstance(bra,FCircuit):
+            if bra.initial_state is not None:
+                ini_bra = init_state_from_wavefunction(bra.initial_state)
+                for i in ini_bra:
+                    i[0] = self.BK.get_addr(i[0])
+                init = [0] * self.BK.civector_size
+                for i in ini_bra:
+                    init[i[0]] = i[1]
+                self.init_state_bra = init
+            self.variables_bra = bra.variables
+            bra = bra.to_upthendown(len(self.BK.aslst))
+            self.BK.ex_ops_bra,_,_ =indices_tq_to_tcc(bra.extract_indices())
+        else:
+            bra,params_bra,_ = indices_tq_to_tcc(bra)
+            if self.variables_bra is None:
+                self.variables_bra = params_bra
+            self.BK.ex_ops_bra = bra
     
     @property
     def ket(self):
         """
         Excitation operators applied to the ket.
         """
-        return self.BK.ex_ops_ket 
+        return indices_tcc_to_tq(self.BK.ex_ops_ket)
     
     @ket.setter
-    def ket(self, ket) -> None:
+    def ket(self, ket:Union[List[List[Tuple[int]]],FCircuit]):
         '''
-        Expected indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (Upthendown order)
+        Expected FCircuit or indices in [[(0,2),(1,3),...],[(a,b),(c,d),...],...] Format (Upthendown order)
         '''
-        ket,params_ket,_ = translate_indices(ket)
-        if self.variables_ket is None: 
-            self.variables_ket = params_ket
-        self.BK.ex_ops_ket = ket
+        if isinstance(ket,FCircuit):
+            if ket.initial_state is not None:
+                ini_ket = init_state_from_wavefunction(ket.initial_state)
+                for i in ini_ket:
+                    i[0] = self.BK.get_addr(i[0])
+                init = [0] * self.BK.civector_size
+                for i in ini_ket:
+                    init[i[0]] = i[1]
+                self.init_state_ket = init
+            self.variables_ket = ket.variables
+            ket = ket.to_upthendown(len(self.BK.aslst))
+            self.BK.ex_ops_ket,_,_ =indices_tq_to_tcc(ket.extract_indices())
+        else:
+            ket,params_ket,_ = indices_tq_to_tcc(ket)
+            if self.variables_ket is None:
+                self.variables_ket = params_ket
+            self.BK.ex_ops_ket = ket
 
     @property
     def variables_bra(self) -> dict:
@@ -253,13 +363,15 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #Here to tequila
                 if isinstance(bar[i],Number):
-                    bar[i] = -2*(bar[i])
+                    bar[i] = assign_variable(-2*(bar[i]))
         return bar 
     
     @property
     def params_bra(self):
         """TCC Circuit Bra parameters (values after minimization or variables name)."""
-        return self.BK.params_bra
+        if self.variables_bra is None: return []
+        d = {v: k for k, v in self.variables_bra.items()}
+        return [d[assign_variable(-2*v)] if isinstance(v,FixedVariable) else d[v] for v in self.BK.params_bra]
     
     @variables_bra.setter
     def variables_bra(self, variables_bra):
@@ -278,13 +390,14 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #to tequila
                 if isinstance(bar[i],Number):
-                    bar[i] = -2*(bar[i])
+                    bar[i] = assign_variable(-2*(bar[i]))
         return bar
     
     @property
     def params_ket(self):
         """TCC Circuit Ket parameters (values after minimization or variables name)."""
-        return self.BK.params_ket
+        d = {v: k for k, v in self.variables_ket.items()}
+        return [d[assign_variable(-2*v)] if isinstance(v,FixedVariable) else d[v] for v in self.BK.params_ket]
     
     @variables_ket.setter
     def variables_ket(self, variables_ket):
@@ -303,17 +416,23 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #Here to tequila 
                 if isinstance(bar[i],Number):
-                    bar[i] = -2*(bar[i])
+                    bar[i] = assign_variable(-2*bar[i])
         return bar 
     
     @property
     def params(self):
         """TCC parameters (values after minimization or variables name)."""
-        return [i for i in self.BK.params if i is not None]
+        k = self.params_ket
+        if self.BK.params_bra is None:
+            return k
+        return self.params_bra+k
     
     @variables.setter
     def variables(self, variables):
         """Tequila circuit variables."""
+        for idx,i in enumerate(variables):
+            if isinstance(assign_variable(i),FixedVariable):
+                variables[idx]=assign_variable(-0.5*i)
         self.BK.params = variables
 
     @property
@@ -373,6 +492,73 @@ class TCCBraket:
     def init_guess(self, init_guess):
         self.BK.init_guess = [-i/2 for i in init_guess]
 
+    @property 
+    def param_to_ex_ops_bra(self):
+        if self.params_bra is None: return {}
+        d = defaultdict(list)
+        for i, j in enumerate(self.params_ket):
+            if hasattr(j,'extract_variables'):
+                for v in j.extract_variables():
+                    d[v].append(self.ket[i])
+            else:
+                d[j].append(self.ket[i])
+        return d
+    
+    
+    @property
+    def param_to_ex_ops_ket(self):
+        d = defaultdict(list)
+        for i, j in enumerate(self.params_ket):
+            if hasattr(j,'extract_variables'):
+                for v in j.extract_variables():
+                    d[v].append(self.ket[i])
+            else:
+                d[j].append(self.ket[i])
+        return d
+    
+    @property
+    def param_to_ex_ops(self):
+        db = self.param_to_ex_ops_bra if self.params_bra is not None else {}
+        dk = self.param_to_ex_ops_ket
+        db.update(dk)
+        return db
+
+    def __str__(self):
+        res = ''
+        if self.is_diagonal:
+            res += f"{self._name} with indices: {self.ket} with variables {self.params_ket}"
+        else:
+            res += f"{self._name} with Bra= {self.bra} with variables {self.params_bra}\n"
+            res += f"{len(self._name)*' '} with Ket= {self.ket} with variables {self.params_ket}"
+        return res
+
+    def __repr__(self):
+        return self.__str__()
+    
+    @property
+    def is_diagonal(self):
+        return self.BK.is_diagonal()
+
+    @property
+    def U(self):
+        'Dummy function to work with tequila Objectives'
+        if self.is_diagonal:
+            return self.ket 
+        else:
+            return self.bra,self.ket
+            # raise Exception("not an Expectation Value") 
+    
+    def count_measurements(self)->int:
+        mes = 0
+        if self.BK.int1e is not None:
+            mes += prod(self.BK.int1e.shape)
+        if self.BK.int2e is not None:
+            mes += prod(self.BK.int2e.shape)
+        if mes:
+            return mes
+        else:
+            return len(self.BK.civector(params=[.0 for _ in range(self.BK.n_variables_ket)]))
+
 def init_state_from_wavefunction(wvf:QubitWaveFunction):
     if not isinstance(wvf._state,dict):
         return init_state_from_array(wvf=wvf)
@@ -401,10 +587,10 @@ def init_state_from_array(wvf:QubitWaveFunction,tol=1e-6):
             init_state.append([vec,idx.real]) #tcc automatically does this, but with an anoying message everytime
     return init_state
 
-def translate_indices(indices):
+def indices_tq_to_tcc(indices:List[List[Tuple[int]]]|None=None):
     '''
     Expected indices like [[(0,1),(n_mo+0,n_mo+1),...],[(a,b),(c,d),...],...] (in upthendown)
-    Returned [(0,n_no+0,...,n_mo+1,1),(a,c,...,d,b)]
+    Returned [(...,n_mo+1,1,0,n_mo+0,...),(...,d,b,a,c,...)]
     '''
     if indices is None:
         return None,None,None
@@ -423,6 +609,24 @@ def translate_indices(indices):
             exc.insert(0,idx[1])
         ex_ops.append(tuple(exc))
     return ex_ops,params,param_ids
+
+def indices_tcc_to_tq(indices:List[List[Tuple[int]]]|None=None)->List[List[Tuple[int]]]:
+    '''
+    Expected indices like [(...,n_mo+1,1,0,n_mo+0,...),(...,d,b,a,c,...)]
+    Returned [[(0,1),(n_mo+0,n_mo+1),...],[(a,b),(c,d),...],...] (in upthendown)
+    '''
+    if indices is None:
+        return None
+    assert isinstance(indices,(list,tuple))
+    if isinstance(indices[0],Number):
+        indices = [indices]
+    ex_ops = []
+    for exct in indices:
+        exc = []
+        for i in range(len(exct)//2):
+            exc.append((exct[-i-1],exct[i]))
+        ex_ops.append(exc[::-1])
+    return ex_ops
 
 def map_variables(x:list[Variable,Objective],dvariables:dict):
     if isinstance(x,Variable):

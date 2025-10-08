@@ -1,6 +1,5 @@
-from tequila import minimize as tminimize
+from tequila.optimizers import minimize as tminimize
 import typing
-import numbers
 from tequila.circuit.compiler import CircuitCompiler
 from tequila.objective.objective import (
     Objective,
@@ -10,24 +9,29 @@ from tequila.objective.objective import (
     identity,
     FixedVariable,
 )
-from tequila import TequilaException
-from tequila.circuit.gradient import grad as tqgrad
-from tequila.objective import QTensor
+from tequila.circuit.noise import NoiseModel
+from tequila import TequilaException,QCircuit,QubitWaveFunction
+from tequila.circuit.gradient import grad as tgrad
+from tequila.objective import QTensor,format_variable_dictionary
 from tequila.simulators.simulator_api import compile
 import typing
 from numpy import vectorize
 from tequila.autograd_imports import jax, __AUTOGRAD__BACKEND__
+from typing import Dict, Union, Hashable,Callable
+from numbers import Number
+from numbers import Real as RealNumber
+from sunrise import FCircuit
 
-def minimize(objective,method: str = "bfgs",variables: list = None,initial_values: typing.Union[dict, numbers.Number, typing.Callable] = 0.0,maxiter: int = None,*args,**kwargs,):
+def minimize(objective,method: str = "bfgs",variables: list = None,initial_values: Union[dict, Number, Callable] = 0.0,maxiter: int = None,silent:bool=True,*args,**kwargs):
     if any([type(arg).__name__ in  ['TCCBraket','FQEBraKet'] for arg in objective.args]):
-        dE = grad(objective=objective)
-        return tminimize(objective=objective,gradient=dE,method=method,variables=variables,initial_values=initial_values,maxiter=maxiter,*args,*kwargs)
+        dE = grad(objective=objective,variable=variables,args=args,kwargs=kwargs)
+        return tminimize(objective=objective,gradient=dE,method=method,variables=variables,initial_values=initial_values,maxiter=maxiter,silent=silent,args=args,kwargs=kwargs)
     else:
-        return tminimize(objective=objective,method=method,variables=variables,initial_values=initial_values,maxiter=maxiter,*args,*kwargs)
+        return tminimize(objective=objective,method=method,variables=variables,initial_values=initial_values,maxiter=maxiter,silent=silent,args=args,kwargs=kwargs)
 
 
 #FIXME: Placeholder functions while not commited to tequila
-def grad(objective: typing.Union[Objective, QTensor], variable: Variable = None, no_compile=True, *args, **kwargs):
+def grad(objective: Union[Objective, QTensor], variable: Variable = None, no_compile=True, *args, **kwargs):
     """
     wrapper function for getting the gradients of Objectives,ExpectationValues, Unitaries (including single gates), and Transforms.
     :param obj (QCircuit,ParametrizedGateImpl,Objective,ExpectationValue,Transform,Variable): structure to be differentiated
@@ -230,7 +234,7 @@ def __grad_shift_rule(unitary, g, i, variable, hamiltonian):
         raise TequilaException("No shift found for gate {}\nWas the compiler called?".format(g))
 
 #FIXME: When commited it should be replaced by:
-# def grad(objective: typing.Union[Objective, QTensor], variable: Variable = None, no_compile=False, *args, **kwargs):
+# def grad(objective: Union[Objective, QTensor], variable: Variable = None, no_compile=False, *args, **kwargs):
 #     """
 #     wrapper function for getting the gradients of Objectives,ExpectationValues, Unitaries (including single gates), and Transforms.
 #     :param obj (QCircuit,ParametrizedGateImpl,Objective,ExpectationValue,Transform,Variable): structure to be differentiated
@@ -240,6 +244,69 @@ def __grad_shift_rule(unitary, g, i, variable, hamiltonian):
 #     """
 
 #     if any([type(arg).__name__ in  ['TCCBraket','FQEBraKet'] for arg in objective.args]):
-#         return tqgrad(objective=objective, variable = variable, no_compile=True, *args, **kwargs)
+#         return tgrad(objective=objective, variable = variable, no_compile=True, *args, **kwargs)
 #     else:
-#         return tqgrad(objective=objective, variable=variable, no_compile=no_compile, *args, **kwargs)
+#         return tgrad(objective=objective, variable=variable, no_compile=no_compile, *args, **kwargs)
+
+# def simulate(
+#     objective: typing.Union["Objective", "QCircuit", "QTensor"],
+#     variables: Dict[Union[Variable, Hashable], RealNumber] = None,
+#     samples: int = None,
+#     backend: str = None,
+#     noise: NoiseModel = None,
+#     device: str = None,
+#     initial_state: Union[int, QubitWaveFunction] = 0,
+#     *args,
+#     **kwargs,
+# ) -> Union[RealNumber, QubitWaveFunction]:
+#     """Simulate a tequila objective or circuit
+
+#     Parameters
+#     ----------
+#     objective: Objective:
+#         tequila objective or circuit
+#     variables: Dict:
+#         The variables of the objective given as dictionary
+#         with keys as tequila Variables/hashable types and values the corresponding real numbers
+#     samples : int, optional:
+#         if None a full wavefunction simulation is performed, otherwise a fixed number of samples is simulated
+#     backend : str, optional:
+#         specify the backend or give None for automatic assignment
+#     noise: NoiseModel, optional:
+#         specify a noise model to apply to simulation/sampling
+#     device:
+#         a device upon which (or in emulation of which) to sample
+#     initial_state: int or QubitWaveFunction:
+#         the initial state of the circuit
+#     *args :
+
+#     **kwargs :
+#         read_out_qubits = list[int] (define the qubits which shall be measured, has only effect on pure QCircuit simulation with samples)
+
+#     Returns
+#     -------
+#     float or QubitWaveFunction
+#         the result of simulation.
+#     """
+
+#     variables = format_variable_dictionary(variables)
+
+#     if variables is None and not (len(objective.extract_variables()) == 0):
+#         raise TequilaException(
+#             "You called simulate for a parametrized type but forgot to pass down the variables: {}".format(
+#                 objective.extract_variables()
+#             )
+#         )
+#     if isinstance()
+#     compiled_objective = compile(
+#         objective=objective,
+#         samples=samples,
+#         variables=variables,
+#         backend=backend,
+#         noise=noise,
+#         device=device,
+#         *args,
+#         **kwargs,
+#     )
+
+#     return compiled_objective(variables=variables, samples=samples, initial_state=initial_state, *args, **kwargs)
