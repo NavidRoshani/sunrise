@@ -10,25 +10,28 @@ from tequila.objective.objective import (
     FixedVariable,
 )
 from tequila.circuit.noise import NoiseModel
-from tequila import TequilaException,QCircuit,QubitWaveFunction
+from tequila import TequilaException,QCircuit,QubitWaveFunction,Molecule,TequilaWarning
 from tequila.circuit.gradient import grad as tgrad
 from tequila.objective import QTensor,format_variable_dictionary
 from tequila.simulators.simulator_api import compile
 import typing
-from numpy import vectorize
+from numpy import vectorize,zeros,where
 from tequila.autograd_imports import jax, __AUTOGRAD__BACKEND__
 from typing import Dict, Union, Hashable,Callable
 from numbers import Number
 from numbers import Real as RealNumber
 from sunrise import FCircuit
+from sunrise.expval.pyscf_molecule import MoleculeFromPyscf 
+from pyscf.gto import Mole
 
 def minimize(objective,method: str = "bfgs",variables: list = None,initial_values: Union[dict, Number, Callable] = 0.0,maxiter: int = None,silent:bool=True,*args,**kwargs):
+    if type(objective).__name__ in  ['TCCBraket','FQEBraKet']:
+        objective = Objective([objective])
     if any([type(arg).__name__ in  ['TCCBraket','FQEBraKet'] for arg in objective.args]):
         dE = grad(objective=objective,variable=variables,args=args,kwargs=kwargs)
         return tminimize(objective=objective,gradient=dE,method=method,variables=variables,initial_values=initial_values,maxiter=maxiter,silent=silent,args=args,kwargs=kwargs)
     else:
         return tminimize(objective=objective,method=method,variables=variables,initial_values=initial_values,maxiter=maxiter,silent=silent,args=args,kwargs=kwargs)
-
 
 #FIXME: Placeholder functions while not commited to tequila
 def grad(objective: Union[Objective, QTensor], variable: Variable = None, no_compile=True, *args, **kwargs):
@@ -39,7 +42,8 @@ def grad(objective: Union[Objective, QTensor], variable: Variable = None, no_com
         default None: total gradient.
     return: dictionary of Objectives, if called on gate, circuit, exp.value, or objective; if Variable or Transform, returns number.
     """
-
+    if type(objective).__name__ in  ['TCCBraket','FQEBraKet']:
+        objective = Objective([objective])
     if variable is None:
         # None means that all components are created
         variables = objective.extract_variables()
@@ -66,14 +70,15 @@ def grad(objective: Union[Objective, QTensor], variable: Variable = None, no_com
     # objective translation
     # if the objective was already translated to a backend
     # we need to reverse that here
-    # if hasattr(objective,'grad'):
-    #     pass
-    # elif objective.is_translated():
-    #     raise TequilaException(
-    #         "\n\ngradient of:{}\ncan not form gradient that was already compiled to a quantum backend\ntq.grad neds to be applied to the abstract - non compiled objective\nE.g. for the (compiled) objective E1 \n\tE1 = tq.compile(E0)\ninstead of doing\n\tdE = tq.grad(E1)\ndo\n\tdE = tq.grad(E0)\nand compile dE afterwards (if wanted) with\n\tdE = tq.compile(dE)\n".format(
-    #             str(objective)
-    #         )
-    #     )
+    our = False
+    if any([type(arg).__name__ in  ['TCCBraket','FQEBraKet'] for arg in objective.args]):
+        our = True
+    elif not our and objective.is_translated():
+        raise TequilaException(
+            "\n\ngradient of:{}\ncan not form gradient that was already compiled to a quantum backend\ntq.grad neds to be applied to the abstract - non compiled objective\nE.g. for the (compiled) objective E1 \n\tE1 = tq.compile(E0)\ninstead of doing\n\tdE = tq.grad(E1)\ndo\n\tdE = tq.grad(E0)\nand compile dE afterwards (if wanted) with\n\tdE = tq.compile(dE)\n".format(
+                str(objective)
+            )
+        )
 
     # circuit compilation
     if no_compile:
@@ -102,7 +107,6 @@ def grad(objective: Union[Objective, QTensor], variable: Variable = None, no_com
         return __grad_objective(objective=compiled, variable=variable)
     else:
         raise TequilaException("Gradient not implemented for other types than ExpectationValue and Objective.")
-
 
 def __grad_objective(objective: Objective, variable: Variable):
     args = objective.args
@@ -147,7 +151,6 @@ def __grad_objective(objective: Objective, variable: Variable):
         raise TequilaException("caught None in __grad_objective")
     return dO
 
-
 def __grad_inner(arg, variable):
     """
     a modified loop over __grad_objective, which gets derivatives
@@ -176,7 +179,6 @@ def __grad_inner(arg, variable):
     else:
         return __grad_objective(objective=arg, variable=variable)
 
-
 def __grad_expectationvalue(E: ExpectationValueImpl, variable: Variable):
     """
     implements the analytic partial derivative of a unitary as it would appear in an expectation value. See the paper.
@@ -204,7 +206,6 @@ def __grad_expectationvalue(E: ExpectationValueImpl, variable: Variable):
 
     assert dO is not None
     return dO
-
 
 def __grad_shift_rule(unitary, g, i, variable, hamiltonian):
     """
@@ -248,65 +249,116 @@ def __grad_shift_rule(unitary, g, i, variable, hamiltonian):
 #     else:
 #         return tgrad(objective=objective, variable=variable, no_compile=no_compile, *args, **kwargs)
 
-# def simulate(
-#     objective: typing.Union["Objective", "QCircuit", "QTensor"],
-#     variables: Dict[Union[Variable, Hashable], RealNumber] = None,
-#     samples: int = None,
-#     backend: str = None,
-#     noise: NoiseModel = None,
-#     device: str = None,
-#     initial_state: Union[int, QubitWaveFunction] = 0,
-#     *args,
-#     **kwargs,
-# ) -> Union[RealNumber, QubitWaveFunction]:
-#     """Simulate a tequila objective or circuit
+def simulate(
+    objective: typing.Union[FCircuit,"Objective", "QCircuit", "QTensor"],
+    variables: Dict[Union[Variable, Hashable], RealNumber] = None,
+    samples: int = None,
+    backend: str = None,
+    noise: NoiseModel = None,
+    device: str = None,
+    initial_state: Union[int, QubitWaveFunction] = 0,
+    *args,
+    **kwargs,
+) -> Union[RealNumber, QubitWaveFunction]:
+    """Simulate a tequila objective or circuit
 
-#     Parameters
-#     ----------
-#     objective: Objective:
-#         tequila objective or circuit
-#     variables: Dict:
-#         The variables of the objective given as dictionary
-#         with keys as tequila Variables/hashable types and values the corresponding real numbers
-#     samples : int, optional:
-#         if None a full wavefunction simulation is performed, otherwise a fixed number of samples is simulated
-#     backend : str, optional:
-#         specify the backend or give None for automatic assignment
-#     noise: NoiseModel, optional:
-#         specify a noise model to apply to simulation/sampling
-#     device:
-#         a device upon which (or in emulation of which) to sample
-#     initial_state: int or QubitWaveFunction:
-#         the initial state of the circuit
-#     *args :
+    Parameters
+    ----------
+    objective: Objective:
+        tequila objective or circuit
+    variables: Dict:
+        The variables of the objective given as dictionary
+        with keys as tequila Variables/hashable types and values the corresponding real numbers
+    samples : int, optional:
+        if None a full wavefunction simulation is performed, otherwise a fixed number of samples is simulated
+    backend : str, optional:
+        specify the backend or give None for automatic assignment
+    noise: NoiseModel, optional:
+        specify a noise model to apply to simulation/sampling
+    device:
+        a device upon which (or in emulation of which) to sample
+    initial_state: int or QubitWaveFunction:
+        the initial state of the circuit
+    *args :
 
-#     **kwargs :
-#         read_out_qubits = list[int] (define the qubits which shall be measured, has only effect on pure QCircuit simulation with samples)
+    **kwargs :
+        read_out_qubits = list[int] (define the qubits which shall be measured, has only effect on pure QCircuit simulation with samples)
 
-#     Returns
-#     -------
-#     float or QubitWaveFunction
-#         the result of simulation.
-#     """
+    Returns
+    -------
+    float or QubitWaveFunction
+        the result of simulation.
+    """
 
-#     variables = format_variable_dictionary(variables)
+    variables = format_variable_dictionary(variables)
 
-#     if variables is None and not (len(objective.extract_variables()) == 0):
-#         raise TequilaException(
-#             "You called simulate for a parametrized type but forgot to pass down the variables: {}".format(
-#                 objective.extract_variables()
-#             )
-#         )
-#     if isinstance()
-#     compiled_objective = compile(
-#         objective=objective,
-#         samples=samples,
-#         variables=variables,
-#         backend=backend,
-#         noise=noise,
-#         device=device,
-#         *args,
-#         **kwargs,
-#     )
+    if variables is None and not (len(objective.extract_variables()) == 0):
+        raise TequilaException(
+            "You called simulate for a parametrized type but forgot to pass down the variables: {}".format(
+                objective.extract_variables()
+            )
+        )
+    
+    if type(objective).__name__ in ['TCCBraket','FQEBraKet']:
+        return objective(variables=variables)
+    if isinstance(objective,FCircuit):
+        if initial_state != 0 :
+            raise TequilaWarning("sun.Simulate(FCircuit) doesn't support the keyword initial_state, you have to provide it from\n" \
+            "the FCicuit.initial_state, in UPTHENDOWN mandatory")
+        mol = None
+        nmo = None
+        if 'molecule' in kwargs:
+            mol = kwargs['molecule']
+            kwargs.pop('molecule')
+        elif 'mol' in kwargs:
+            mol = kwargs['mol']
+            kwargs.pop('mol')
+        elif 'n_mo' in kwargs:
+            nmo = kwargs['nmo']
+            kwargs.pop('nmo')
+        elif 'n_orbitals' in kwargs:
+            nmo = kwargs['n_orbitals']
+            kwargs.pop('n_orbitals')
+        else:
+            avisa = True
+            nmo = (max(objective.qubits)//2) + 1
+        if mol is not None:
+            if isinstance(mol,Mole):
+                mol = MoleculeFromPyscf(mol)
+        elif nmo is not None:
+            if 'transformation' in kwargs:
+                transformation = kwargs['transformation']
+                kwargs.pop('transformation')
+            else: transformation = 'Jordan-Wigner'
+            h = zeros((nmo,nmo))
+            g = zeros((nmo,nmo,nmo,nmo))
+            mol = Molecule(geometry= "\n".join(f"H 0.0 0.0 {i}" for i in range(nmo)),basis_set='sto-3g',one_body_integrals=h,two_body_integrals=g,transformation=transformation)
+            if avisa and not all([ not g.reordered for g in objective.gates]):
+                raise TequilaWarning("Some indices were provided in reordered, the output may not be correct")
+        mol.transformation.up_then_down = True
+        ini = objective.initial_state.to_array()
+        main = where(ini>1.e-6)[0]
+        if len(main) >1:
+            raise NotImplementedError('Not working yet')
+        else:#TODO: This is a temporaly bypass while more sofisticate initial states
+            U = objective.to_qcircuit(mol)
+            return simulate(objective=U,initial_state=int(bin(main[0])[2:]),variables=variables,samples=samples,backend=backend,noise=noise,device=device,args=args,kwargs=kwargs)
+        #IDEA this is should be continued when fixed
+        ini = f''.join(f'{ini[i].real}|{bin(i)[2:]}>'.format() for i in main)
+        ini = QubitWaveFunction.from_string(f''.join(f'{ini[i].real}|{bin(i)[2:]}>'.format() for i in main))
+        U = objective.to_qcircuit(mol)
+        return  simulate(objective=U,initial_state=ini,variables=variables,samples=samples,backend=backend,noise=noise,device=device,args=args,kwargs=kwargs)
+            
+        
+    compiled_objective = compile(
+        objective=objective,
+        samples=samples,
+        variables=variables,
+        backend=backend,
+        noise=noise,
+        device=device,
+        *args,
+        **kwargs,
+    )
 
-#     return compiled_objective(variables=variables, samples=samples, initial_state=initial_state, *args, **kwargs)
+    return compiled_objective(variables=variables, samples=samples, initial_state=initial_state, *args, **kwargs)

@@ -9,5 +9,5 @@ from sunrise.expval import Braket,show_available_modules,show_supported_modules
 from sunrise.fermionic_excitation import gates
 from sunrise.fermionic_excitation.circuit import FCircuit
 from sunrise.expval.pyscf_molecule import *
-from sunrise.expval.minimize import grad,minimize
+from sunrise.expval.minimize import grad,minimize,simulate
 from sunrise import graphical
