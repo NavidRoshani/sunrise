@@ -1,7 +1,7 @@
 import tequila as tq
 from tequila import QCircuit,QTensor
 from numpy import zeros,eye,allclose,ndarray,array
-
+from typing import Union,List
 from tequila.circuit._gates_impl import ParametrizedGateImpl, QGateImpl
 
 
@@ -12,7 +12,7 @@ def OR(*args, **kwargs):
 # gate impl
 class OrbitalRotation(QGateImpl):
 
-    def __init__(self,orbitals:[int]=None,matrix:[QTensor,ndarray,list]=None,molecule=None):
+    def __init__(self,orbitals:List[int]=None,matrix:Union[QTensor,ndarray,list]=None,molecule=None):
         if isinstance(matrix,list):
             matrix = array(list)
         if isinstance(matrix,ndarray) and not isinstance(matrix,QTensor):

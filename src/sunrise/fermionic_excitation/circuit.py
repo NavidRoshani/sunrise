@@ -9,7 +9,7 @@ from tequila import assign_variable,QCircuit,QubitWaveFunction,simulate
 from typing import List,Union,Iterable,Optional
 import copy
 from collections import defaultdict
-from numpy import ndarray
+from numpy import ndarray,where,isclose
 import warnings
 import numbers
 from copy import deepcopy
@@ -44,7 +44,7 @@ class FCircuit:
 
     """
 
-    def __init__(self, gates:list|None=None, initial_state:typing.Union[QCircuit,QubitWaveFunction,str,int]|None=None, parameter_map=None):
+    def __init__(self, gates:list|None=None, initial_state:Union[QCircuit,QubitWaveFunction,str,int]|None=None, parameter_map=None):
         """
         init
         Parameters
@@ -114,8 +114,8 @@ class FCircuit:
         if initial_state is not None:
             self.n_qubits = max(self.n_qubits,initial_state.n_qubits)
             initial_state._n_qubits = self.n_qubits
-        self._initial_state = initial_state
-
+            self._initial_state = initial_state
+            self._verify_state()
     @property
     def depth(self):
         """
@@ -576,6 +576,16 @@ class FCircuit:
             else:
                 raise TequilaException(f'Gate {gate} not idenified')
         return res
+    
+    def _verify_state(self):
+        state = self._initial_state.to_array()
+        indices = where(state>1.e-6)[0]
+        nozero = [bin(i)[2:] for i in indices]
+        ne = nozero[0].count('1')
+        if not all([st.count('1')==ne for st in nozero]):
+            raise TequilaException('The Initial State is not Particle-conserving')
+        if not all([isclose(state[i].imag,0.,atol=1.e-6) for i in indices]):
+            raise TequilaException('No Imaginary states for Chemistry States')
 
 if __name__ == '__main__':
     import tequila as tq
