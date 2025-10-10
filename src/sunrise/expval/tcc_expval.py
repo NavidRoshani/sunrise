@@ -131,6 +131,8 @@ class TCCBraket:
             else:
                 raise TequilaException("No manner of defining the amount of electrons provided")
             if all([i is not None for i in[int2e,int1e,mo_coeff]]):
+                if isinstance(int2e,NBodyTensor):
+                    int2e = int2e.reorder('chem').elems
                 self.BK:EXPVAL = EXPVAL.from_integral(int1e=int1e, int2e=int2e,n_elec= n_elec, e_core=e_core,ovlp=ovlp,mo_coeff=mo_coeff,init_method="zeros",run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,**backend_kwargs)
             else:
                 raise TequilaException('Not enough molecular data provided')
@@ -174,7 +176,7 @@ class TCCBraket:
                 v.update(variables)
             tvars: list = deepcopy(self.BK.total_variables)
             variables:list = [map_variables(x,v) for x in tvars]
-        return self.BK.expval(angles=[-i/2 for i in variables])
+        return self.BK.expval(angles=[i/2 for i in variables])
 
     def extract_variables(self) -> list:
         """
@@ -218,8 +220,8 @@ class TCCBraket:
                     braket.bra = k
                     braket.variables_bra = v
                     idx = k.index(exct)
-                    ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
-                    v[idx] +=  s[ket]*pi 
+                    ph = grad(v[idx],variable) if not isinstance(v[idx],Union[Variable,FixedVariable]) else 1.
+                    v[idx] +=  s[ket]*pi/2 
                     for p in reversed(p0):
                         k.insert(idx,[p])
                         v.insert(idx,assign_variable(s[not p0sign]*pi))
@@ -232,7 +234,7 @@ class TCCBraket:
                     v = deepcopy(braket.params_ket)
                     idx = k.index(exct)
                     ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
-                    v[idx] +=  s[ket]*pi  
+                    v[idx] +=  s[ket]*pi/2
                     for p in reversed(p0):
                         k.insert(idx,[p])
                         v.insert(idx,assign_variable(s[not p0sign]*pi)) 
@@ -245,7 +247,7 @@ class TCCBraket:
                     v = deepcopy(braket.params_ket)
                     idx = k.index(exct)
                     ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
-                    v[idx] +=  s[ket]*pi  
+                    v[idx] +=  s[ket]*pi/2 
                     for p in reversed(p0):
                         k.insert(idx,[p])
                         v.insert(idx,assign_variable(s[not p0sign]*pi)) 
@@ -257,7 +259,7 @@ class TCCBraket:
                     v = deepcopy(braket.params_bra)
                     idx = k.index(exct)
                     ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
-                    v[idx] +=  s[ket]*pi  
+                    v[idx] +=  s[ket]*pi/2
                     for p in reversed(p0):
                         k.insert(idx,[p])
                         v.insert(idx,assign_variable(s[not p0sign]*pi)) 
@@ -283,11 +285,11 @@ class TCCBraket:
         ex_ops = self.param_to_ex_ops[variable]
         g = 0
         for exct in ex_ops:
-            g += apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=True)
-            g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=False)
+            g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=True)
+            # g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=False)
             g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=False,p0sign=True)
-            g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=False,p0sign=False)
-        return 0.25*g
+            # g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=False,p0sign=False)
+        return -0.5*g
 
     @property
     def energy(self)->float:
