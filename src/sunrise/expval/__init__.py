@@ -1,7 +1,7 @@
 from sunrise.expval.tequila_expval import TequilaBraket
 
 SUPPORTED_FERMIONIC_BACKENDS = ["tequila", "fqe", "tcc"]
-INSTALLED_FERMIONIC_BACKENDS = {}#{"tequila": TequilaBraket}
+INSTALLED_FERMIONIC_BACKENDS = {"tequila": TequilaBraket}
 
 try:
     from sunrise.expval.tcc_expval import TCCBraket
