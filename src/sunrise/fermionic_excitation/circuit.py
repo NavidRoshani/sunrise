@@ -391,6 +391,8 @@ class FCircuit:
         for i,gate in enumerate(self.gates):
             if gate != other.gates[i]:
                 return False
+        if not ((self.initial_state is None) + (other.initial_state is None))%2:
+            return False
         if len(self.initial_state.to_array()) != len(other.initial_state.to_array()):
             return False
         if self.initial_state.numbering != other.initial_state.numbering:
