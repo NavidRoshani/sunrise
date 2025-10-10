@@ -1,26 +1,20 @@
 from tequila.optimizers import minimize as tminimize
 import typing
 from tequila.circuit.compiler import CircuitCompiler
-from tequila.objective.objective import (
-    Objective,
-    ExpectationValueImpl,
-    Variable,
-    assign_variable,
-    identity,
-    FixedVariable,
-)
+from tequila.objective.objective import Objective,ExpectationValueImpl,Variable,assign_variable,identity,FixedVariable
 from tequila.circuit.noise import NoiseModel
 from tequila import TequilaException,QCircuit,QubitWaveFunction,Molecule,TequilaWarning
 from tequila.circuit.gradient import grad as tgrad
 from tequila.objective import QTensor,format_variable_dictionary
 from tequila.simulators.simulator_api import compile
+from tequila.quantumchemistry import optimize_orbitals as tq_opt_orbs
 import typing
 from numpy import vectorize,zeros,where
 from tequila.autograd_imports import jax, __AUTOGRAD__BACKEND__
 from typing import Dict, Union, Hashable,Callable
 from numbers import Number
 from numbers import Real as RealNumber
-from sunrise import FCircuit
+from sunrise import FCircuit,Braket
 from sunrise.expval.pyscf_molecule import MoleculeFromPyscf 
 from pyscf.gto import Mole
 
@@ -362,3 +356,47 @@ def simulate(
     )
 
     return compiled_objective(variables=variables, samples=samples, initial_state=initial_state, *args, **kwargs)
+
+
+
+#TODO: We need a proper fermionic molecule for this
+def optimize_orbitals(molecule,circuit=FCircuit,backend:str='tequila',pyscf_arguments=None,silent=False,backend_kwargs=None,initial_guess=None,return_mcscf=False,
+    molecule_factory=None,molecule_arguments=None,restrict_to_active_space=True,*args,**kwargs):
+    """
+
+    Parameters
+    ----------
+    molecule: The tequila molecule whose orbitals are to be optimized
+    circuit: The FCircuit that defines the ansatz to the wavefunction in the VQE
+             can be None, if a customized vqe_solver is passed that can construct a circuit
+    backend: Fermionic Backend, will be created a tequila.chemistry.optimize_orbitals with custom vqe_solver
+    pyscf_arguments: Arguments for the MCSCF structure of PySCF, if None, the defaults are {"max_cycle_macro":10, "max_cycle_micro":3} (see here https://pyscf.org/pyscf_api_docs/pyscf.mcscf.html)
+    silent: silence printout
+    backend_kwargs: Optional arguments for a customized selected backed
+                          for the default solver: backend_kwargs={"optimizer_arguments":A, "restrict_to_hcb":False} where A holds the kwargs for tq.minimize
+                          restrict_to_hcb keyword controls if the standard (in whatever encoding the molecule structure has) Hamiltonian is constructed or the hardcore_boson hamiltonian
+    initial_guess: Initial guess for the MCSCF module of PySCF (Matrix of orbital rotation coefficients)
+                   The default (None) is a unit matrix
+                   predefined commands are
+                        initial_guess="random"
+                        initial_guess="random_loc=X_scale=Y" with X and Y being floats
+                        This initialized a random guess using numpy.random.normal(loc=X, scale=Y) with X=0.0 and Y=0.1 as defaults
+    return_mcscf: return the PySCF MCSCF structure after optimization
+    molecule_arguments: arguments to pass to molecule_factory or default molecule constructor | only change if you know what you are doing
+    args: just here for convenience
+    kwargs: just here for conveniece
+
+    Returns
+    -------
+        Optimized Tequila Molecule
+    """
+    class vqe_solver:
+        def __init__(self,backend:str='tequila',circuit:FCircuit=None) -> None:
+            self.backend = backend
+            self.U = circuit
+        def __call__(self, H, circuit, molecule, **backend_kwargs):
+            return Braket(backend=backend,molecule=molecule,circuit=self.U,kwargs=backend_kwargs)
+    
+ 
+    return tq_opt_orbs(molecule=molecule,circuit=circuit.to_qcircuit(molecule=molecule),vqe_solver=vqe_solver(backend=backend,circuit=circuit),pyscf_arguments=pyscf_arguments,silent=silent,initial_guess=initial_guess,return_mcscf=return_mcscf,
+            molecule_factory=molecule_factory,molecule_arguments=molecule_arguments,restrict_to_active_space=restrict_to_active_space,*args,**kwargs)#,args=args,kwargs=kwargs)

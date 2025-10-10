@@ -18,6 +18,9 @@ class FGateImpl:
     @property
     def name(self):
         return self._name
+    
+    def is_controlled(self):
+        return False #TODO: at some point we should
 
     def to_upthendown(self,norb:int):
         if not self.reordered:
