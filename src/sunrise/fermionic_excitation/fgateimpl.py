@@ -126,6 +126,17 @@ class FGateImpl:
             return self.qubits[-1]
         else: return 0
 
+    def __eq__(self, other) -> bool:
+        if self.name != other.name:
+            return False
+        if self.reordered != other.reordered:
+            return False
+        if self.variables != other.variables:
+            return False
+        if self.indices != other.indices:
+            return False
+        return True
+
 class FermionicExcitationImpl(FGateImpl):
     def __init__(self, indices:typing.Union[list,tuple]|None=None, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None, reordered:bool=False):
         super().__init__(indices, variables, reordered)

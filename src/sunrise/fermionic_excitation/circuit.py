@@ -385,13 +385,17 @@ class FCircuit:
             result += str(g) + "\n"
         return result
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if len(self.gates) != len(other.gates):
             return False
-        for i, g in enumerate(self.gates):
-            if g != other.gates[i]:
+        for i,gate in enumerate(self.gates):
+            if gate != other.gates[i]:
                 return False
-        return True
+        if len(self.initial_state.to_array()) != len(other.initial_state.to_array()):
+            return False
+        if self.initial_state.numbering != other.initial_state.numbering:
+            return False
+        return isclose(self.initial_state.inner(other=other.initial_state),1.,atol=1.e-4)
 
     def __repr__(self):
         return self.__str__()
@@ -586,6 +590,7 @@ class FCircuit:
             raise TequilaException('The Initial State is not Particle-conserving')
         if not all([isclose(state[i].imag,0.,atol=1.e-6) for i in indices]):
             raise TequilaException('No Imaginary states for Chemistry States')
+    
 
 if __name__ == '__main__':
     import tequila as tq
