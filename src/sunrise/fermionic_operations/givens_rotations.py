@@ -1,5 +1,5 @@
 # from . import FCircuit,UR,Phase
-from sunrise import fermionic_circuit as fe
+from sunrise import fermionic_operations as fe
 from tequila import QTensor,Variable,Objective
 import numpy
 import numbers
