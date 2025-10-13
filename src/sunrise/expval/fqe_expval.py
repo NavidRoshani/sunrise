@@ -6,6 +6,7 @@ from tequila import QubitWaveFunction,TequilaException
 from tequila.quantumchemistry import QuantumChemistryBase
 import fqe
 from tequila.objective import Objective
+from tequila.autograd_imports import jax, __AUTOGRAD__BACKEND__
 
 
 from sunrise.expval.fqe_utils import *
@@ -14,53 +15,80 @@ from sunrise.fermionic_excitation.circuit import FCircuit
 
 from typing import List, Any
 
+from tequila.objective.objective import (
+    Objective,
+    ExpectationValueImpl,
+    Variable,
+    assign_variable,
+    identity,
+    FixedVariable,
+)
+from tequila.objective import QTensor
 
 class FQEBraKet:
 
     def __init__(self,
-                 ket_fcircuit: FCircuit = None, bra_fcircuit: FCircuit = None,
+                 ket: FCircuit = None, bra: FCircuit = None,
                  one_body_integrals: Any = None, two_body_integrals = None, constant: int = None,
                  mol: QuantumChemistryBase= None,
                  *args, **kwargs
                  ):
 
-        if "ket_fcircuit" in kwargs and ket_fcircuit is None:
-            ket_fcircuit = kwargs["ket_fcircuit"]
+        if "ket_fcircuit" in kwargs:
+            ket = kwargs["ket_fcircuit"]
             kwargs.pop("ket_fcircuit")
-        elif "ket_fcircuit" in kwargs and ket_fcircuit is not None:
-            raise ValueError("Two circuits provided")
-        if ket_fcircuit is None:
+        elif "ket" in kwargs:
+            ket = kwargs["ket"]
+            kwargs.pop("ket")
+
+        if ket is None:
             raise ValueError("No ket fcircuit provided")
 
-        if "bra_fcircuit" in kwargs and bra_fcircuit is None:
-            bra_fcircuit = kwargs["bra_fcircuit"]
+        if "bra_fcircuit" in kwargs:
+            bra = kwargs["bra_fcircuit"]
             kwargs.pop("bra_fcircuit")
+        elif "bra" in kwargs:
+            bra = kwargs["bra"]
+            kwargs.pop("bra")
 
         molecule_flag = False
-        if ("molecule" in kwargs) and (mol is None):
+        if "molecule" in kwargs:
             mol = kwargs["molecule"]
             kwargs.pop("molecule")
             molecule_flag = True
-        elif "molecule" in kwargs and mol is not None:
-            raise ValueError("Two Molecules provided")
+        elif "mol" in kwargs:
+            mol = kwargs["mol"]
+            kwargs.pop("mol")
+            molecule_flag = True
 
-        if "one_body_integrals" in kwargs and one_body_integrals is None:
+        if "one_body_integrals" in kwargs:
             one_body_integrals = kwargs["one_body_integrals"]
             kwargs.pop("one_body_integrals")
-        elif "one_body_integrals" in kwargs and one_body_integrals is not None:
-            raise ValueError("Two one body integrals provided")
+        elif "h" in kwargs:
+            one_body_integrals = kwargs["h"]
+            kwargs.pop("h")
+        elif "init1e" in kwargs:
+            one_body_integrals = kwargs["init1e"]
+            kwargs.pop("init1e")
 
-        if "two_body_integrals" in kwargs and two_body_integrals is None:
+        if "two_body_integrals" in kwargs:
             two_body_integrals = kwargs["two_body_integrals"]
             kwargs.pop("two_body_integrals")
-        elif "two_body_integrals" in kwargs and two_body_integrals is not None:
-            raise ValueError("Two two body integrals provided")
+        elif "g" in kwargs:
+            two_body_integrals = kwargs["g"]
+            kwargs.pop("g")
+        elif "init2e" in kwargs:
+            two_body_integrals = kwargs["init2e"]
+            kwargs.pop("init2e")
 
-        if "constant" in kwargs and constant is None:
+
+        if "constant" in kwargs:
             constant = kwargs["constant"]
             kwargs.pop("constant")
-        elif "constant" in kwargs and constant is not None:
-            raise ValueError("Two constants provided")
+        elif "c" in kwargs:
+            constant = kwargs["c"]
+            kwargs.pop("c")
+
 
 
 
@@ -102,48 +130,58 @@ class FQEBraKet:
             raise TequilaException("number of electrons must not be greater than number of orbitals")
 
         self.n_ele = n_ele
-        ket_fcircuit = ket_fcircuit.to_udud(norb=self.n_orbitals)
+        ket = ket.to_udud(norb=self.n_orbitals)
 
         self.parameter_map_ket = []
-        for x in ket_fcircuit.variables:
+        for x in ket.variables:
             self.parameter_map_ket.append(tq.assign_variable(x))
         self.parameter_map_ket = list(dict.fromkeys(self.parameter_map_ket))
 
         # self.parameter_map_ket = [tq.assign_variable(x) for x in ket_fcircuit.variables]
+        self._constant_dict_ket = {}
+        ket_instructions = ket.extract_indices()
+        self.ket_instructions = ket_instructions
+        ket_angles = ket.variables
+        self.ket_angles = ket_angles
 
-        ket_instructions = ket_fcircuit.extract_indices()
-        ket_angles = ket_fcircuit.variables
         self.ket_generator = create_fermionic_generators(ket_instructions, ket_angles)
+        self.ket_generator_idx_map={}
+        for i, gen in enumerate(self.ket_generator.keys()):
+            self.ket_generator_idx_map[gen] = self.ket_instructions[i]
 
         bin_dict = generate_of_binary_dict(self.n_orbitals, self.n_ele // 2)
 
         self.ket = fqe.Wavefunction(param=[[self.n_ele, 0, self.n_orbitals]])  # probably only works for H
 
-        if ket_fcircuit.initial_state is None:
+        if ket.initial_state is None:
             self.ket.set_wfn(strategy='hartree-fock')
         else:
-            set_init_state(wfn = self.ket, n_ele=self.n_ele,n_orb=self.n_orbitals, init_state=ket_fcircuit.initial_state, bin_dict=bin_dict)
+            set_init_state(wfn = self.ket, n_ele=self.n_ele, n_orb=self.n_orbitals, init_state=ket.initial_state, bin_dict=bin_dict)
 
 
         bra_instructions = None
+        bra_angles = None
         init_bra = None
-        if bra_fcircuit is not None:
-            bra_fcircuit = bra_fcircuit.to_udud(norb=self.n_orbitals)
-            # self.parameter_map_bra = [tq.assign_variable(x[0]) for x in bra_fcircuit.variables]
+        self.constant_dict_bra = {}
+        if bra is not None:
+            bra = bra.to_udud(norb=self.n_orbitals)
+
             self.parameter_map_bra = []
-            for x in bra_fcircuit.variables:
+            for x in bra.variables:
                     self.parameter_map_bra.append(tq.assign_variable(x))
             self.parameter_map_bra = list(dict.fromkeys(self.parameter_map_bra))
-            bra_instructions = bra_fcircuit.extract_indices()
-            bra_angles = bra_fcircuit.variables
+            bra_instructions = bra.extract_indices()
+            bra_angles = bra.variables
+
             self.bra_generator = create_fermionic_generators(bra_instructions, bra_angles)
-            init_bra = bra_fcircuit.initial_state
+            init_bra = bra.initial_state
 
         self.bra_instructions = bra_instructions
+        self.bra_angles = bra_angles
         self.init_bra = init_bra
 
 
-        if bra_fcircuit is None:
+        if bra is None:
             self.bra = None
         else:
             self.bra = fqe.Wavefunction(param=[[self.n_ele, 0, self.n_orbitals]])
@@ -157,28 +195,57 @@ class FQEBraKet:
         self.bra_time_evolved = None
 
 
-    def __call__(self,variables, *args, **kwargs):
+    def __call__(self, variables, *args, **kwargs):
+        # print("============== Start call")
 
+        internal_variables = variables
         if self.bra is not None:
             parameter_map = self.parameter_map_bra + self.parameter_map_ket
         else:
             parameter_map = self.parameter_map_ket
-        if type(variables) is not dict:
-            variables = {parameter_map[i]: variables[i] for i in range(len(variables))}
 
-        variables = tq.format_variable_dictionary(variables)
+        if isinstance(internal_variables, tq.objective.objective.Variables):
+            pass
+        else:
+            if type(internal_variables) is not dict:
+                    internal_variables = {parameter_map[i]: internal_variables[i] for i in range(len(internal_variables))}
+            internal_variables = tq.format_variable_dictionary(internal_variables)
 
-        parameters_ket = [x(variables) for x in self.parameter_map_ket]
+        # print(self.constant_dict_ket)
+        # print(self.parameter_map_ket)
+        if self.constant_dict_ket != {}:
+            for const in self.constant_dict_ket.keys():
 
+                internal_variables[const] = internal_variables[const] + self.constant_dict_ket[const] # shift wrong?
+            internal_variables["p0sign"] = -np.pi # const
+
+        # print(variables)
+        parameters_ket = [x(internal_variables) for x in self.parameter_map_ket]
+        # print(parameters_ket)
         zip_ket = zip(parameters_ket, self.ket_generator.values())
         ket_t = self.ket
+        # print(parameters_ket)
+
         for argument in zip_ket:
+
             ket_t = ket_t.time_evolve(0.5 * argument[0], argument[1])
+
+
+
+
+
         #bra time evolution
         if self.bra_instructions is  None:
             bra_t = None
         else:
-            parameters_bra = [x(variables) for x in self.parameter_map_bra]
+            if self.constant_dict_bra != {}:
+                for const in self.constant_dict_bra.keys():
+                    internal_variables[const] = internal_variables[const] + self.constant_dict_bra[const]
+                if "1pi_name_gradient" in self.parameter_map_ket:
+                    internal_variables["1pi_name_gradient"] = np.pi
+                elif "-1pi_name_gradient" in self.parameter_map_ket:
+                    internal_variables["-1pi_name_gradient"] = -np.pi
+            parameters_bra = [x(internal_variables) for x in self.parameter_map_bra]
             zip_bra = zip(parameters_bra, self.bra_generator.values())
             bra_t = self.bra
             for argument in zip_bra:
@@ -207,8 +274,154 @@ class FQEBraKet:
     def print_bra_time_evolved(self):
         self.bra_time_evolved.print_wfn()
 
-    def print_generator(self):
+    def print_ket_generator(self):
         print(self.ket_generator)
+
+    def print_bra_generator(self):
+        if self.bra_instructions is not None:
+            raise ValueError("No bra circuit provided")
+        else:
+            print(self.bra_generator)
+
+    def extract_ket_variables(self):
+        return self.ket_angles
+
+    def extract_bra_variables(self):
+        return self.bra_angles
+
+    def extract_variables(self):
+        ket_v = self.extract_ket_variables()
+
+        bra_v=[]
+        if self.bra_instructions is not None:
+            bra_v = self.extract_bra_variables()
+            ket_v.append(bra_v)
+        return ket_v
+
+    @property
+    def constant_dict_ket(self):
+        # print('Called,',self._constant_dict_ket)
+        return  self._constant_dict_ket
+
+    @constant_dict_ket.setter
+    def constant_dict_ket(self, constant_dict_ket):
+        self._constant_dict_ket = constant_dict_ket
+        # print("Setted",self._constant_dict_ket)
+
+    @property
+    def U(self):
+        return None
+
+    def count_measurements(self) -> int:
+        mes = 0
+        if self.h_fqe is not None:
+            mes = self.h_fqe.dim()
+        return mes
+
+    def __str__(self):
+        res = ''
+        # if self.is_diagonal:
+        res += f" Ket with indices: {self.ket_instructions} with variables {self.ket_angles}"
+        res += f" Bra with indices: {self.bra_instructions} with variables {self.bra_angles}"
+        # else:
+        #     res += f"{self._name} with Bra= {self.bra} with variables {self.params_bra}\n"
+        #     res += f"{len(self._name)*' '} with Ket= {self.ket} with variables {self.params_ket}"
+        return res
+
+    def __repr__(self):
+        return self.__str__()
+
+
+
+    def grad(self, variable: Variable = None, *args, **kwargs):
+        # print("============== Start grad")
+        def apply_phase(braket: FQEBraKet, exct: List[Tuple[int]], variable, ket: bool = True, p0sign: bool = True) \
+                -> Objective:
+            # print("============= Start phase",ket,p0sign)
+            s = {True: +1, False: -1}
+            length=0
+            ph = tq.grad(variable, variable) if not isinstance(variable, Variable) else 1.
+
+            p0 = make_excitation_generator_op(exct, form="p0")
+            for key in p0.terms:
+                length += len(key)
+            name = "p0sign"
+            if ket:
+                c = deepcopy(braket.constant_dict_ket)
+                if p0sign:
+                    p0 = p0
+                    c[variable] =  0.5*np.pi
+
+                else:
+                    p0 = -p0
+                    c[variable] = -  np.pi
+
+
+
+
+                # print('-->',c)
+                index = braket.parameter_map_ket.index(variable)
+                aux_dict = {}
+                i = 0
+                for stuff in braket.ket_generator:
+
+                    aux_dict[stuff] = braket.ket_generator[stuff]
+                    if i == index:
+                        aux_dict["p0"] = p0
+                    i+=1
+                braket.ket_generator = aux_dict
+                braket.constant_dict_ket = c
+                braket.parameter_map_ket.insert(index+1, tq.Variable(name))
+            else:
+
+                if p0sign:
+                    braket.ket_generator[name] = p0
+                else:
+                    braket.ket_generator[name] = -p0
+
+                braket.constant_dict_bra[variable] = - np.pi
+
+                index = braket.parameter_map_bra.index(variable)
+                braket.parameter_map_bra.insert(index + 1, tq.Variable(name))
+
+            return  -1*s[ket]*s[(length//2)%2]*s[p0sign]*ph*Objective([braket])  # TODO: Check this correct
+
+
+
+        if variable is None:
+            # None means that all components are created
+            variables = self.extract_variables()
+            result = {}
+
+            if len(variables) == 0:
+                raise TequilaException("Error in gradient: Objective has no variables")
+
+            for k in variables:
+                assert k is not None
+                result[k] = self.grad(k)
+            return result
+        else:
+            variable = assign_variable(variable)
+
+        if variable not in self.extract_variables():
+
+            return 0.
+
+        erw=self.ket_generator_idx_map[variable]
+        # print("Variable",variable,'->',erw)
+        g = 0
+        for stuff in [erw]:
+            g += apply_phase(deepcopy(self), stuff, variable, ket=True, p0sign=True)
+            g += apply_phase(deepcopy(self), stuff, variable, ket=True, p0sign=False)
+            if self.bra_instructions is not None:
+                g += apply_phase(deepcopy(self), stuff, variable, ket=False, p0sign=True)
+                g += apply_phase(deepcopy(self), stuff, variable, ket=False, p0sign=False)
+
+        return 0.5*g
+
+
+    def minimize(self):
+        return None
 
 
 def set_init_state( wfn: fqe.Wavefunction, n_ele, n_orb,
