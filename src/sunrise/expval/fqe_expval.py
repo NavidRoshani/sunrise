@@ -11,7 +11,7 @@ from tequila.autograd_imports import jax, __AUTOGRAD__BACKEND__
 
 from sunrise.expval.fqe_utils import *
 from sunrise.expval.fermionic_utils import *
-from sunrise.fermionic_excitation.circuit import FCircuit
+from sunrise.fermionic_operations.circuit import FCircuit
 
 from typing import List, Any
 
