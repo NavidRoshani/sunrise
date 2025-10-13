@@ -2,6 +2,7 @@ from typing import Union, Tuple
 
 import numpy as np
 import tequila as tq
+from sympy import false
 from tequila import QubitWaveFunction,TequilaException
 from tequila.quantumchemistry import QuantumChemistryBase
 import fqe
@@ -90,6 +91,25 @@ class FQEBraKet:
             kwargs.pop("c")
 
 
+        operator_flag_h = False
+        operator_flag_custom = False
+        if "operator" in kwargs:
+            operator = kwargs["operator"]
+            kwargs.pop("operator")
+
+            if isinstance(operator, str):
+                if operator.lower() == "h" or operator.lower() == "hamiltonian":
+                    operator_flag_h = True
+                elif operator.lower() == "i" or operator.lower() == "identity":
+                   pass
+                else:
+                    raise TequilaException("Not implemented operator {}".format(operator))
+            elif isinstance(operator,openfermion.ops.operators.fermion_operator.FermionOperator):
+                operator_flag_custom = True
+            else:
+                raise TequilaException("Not recognized format {}".format(operator))
+
+
 
 
         if (one_body_integrals is None and two_body_integrals is not None) \
@@ -104,20 +124,29 @@ class FQEBraKet:
             integral_flag = False
 
         construct_ham= True
-        if integral_flag is False and molecule_flag is False:
+        if integral_flag is False and molecule_flag is False and operator_flag_custom is False:
             construct_ham = False
+            if operator_flag_h is True:
+                raise TequilaException("No integrals or molecule provided to construct Hamiltonian")
 
         if construct_ham:
             if integral_flag is True:
                 self.h_of = make_fermionic_hamiltonian(one_body_integrals, two_body_integrals, constant,)
                 self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of)
                 self.n_orbitals = one_body_integrals.shape[0]
+                n_ele = kwargs.get("n_ele")
             elif molecule_flag is True:
                 c,h,g = mol.get_integrals()
                 self.h_of = make_fermionic_hamiltonian(one_body_integrals=h, two_body_integrals=g.elems, constant=c)
                 self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of)
                 self.n_orbitals = h.shape[0]
                 n_ele = mol.n_electrons
+            elif operator_flag_custom is True:
+                self.h_of = operator
+                self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of)
+                self.n_orbitals = kwargs.get("n_orbitals")
+                n_ele = kwargs.get("n_ele")
+
         else:
             self.h_fqe = None
             self.n_orbitals = kwargs.get("n_orbitals")
@@ -125,6 +154,8 @@ class FQEBraKet:
 
         if self.n_orbitals is None:
             raise TequilaException("n_orbitals not defined in the kwargs")
+        if n_ele is None:
+            raise TequilaException("Number of electrons not defined in the kwargs")
 
         if n_ele > self.n_orbitals:
             raise TequilaException("number of electrons must not be greater than number of orbitals")
@@ -196,7 +227,6 @@ class FQEBraKet:
 
 
     def __call__(self, variables, *args, **kwargs):
-        # print("============== Start call")
 
         internal_variables = variables
         if self.bra is not None:
@@ -211,27 +241,21 @@ class FQEBraKet:
                     internal_variables = {parameter_map[i]: internal_variables[i] for i in range(len(internal_variables))}
             internal_variables = tq.format_variable_dictionary(internal_variables)
 
-        # print(self.constant_dict_ket)
-        # print(self.parameter_map_ket)
         if self.constant_dict_ket != {}:
             for const in self.constant_dict_ket.keys():
 
-                internal_variables[const] = internal_variables[const] + self.constant_dict_ket[const] # shift wrong?
-            internal_variables["p0sign"] = -np.pi # const
+                internal_variables[const] = internal_variables[const] + self.constant_dict_ket[const]
+            internal_variables["p0sign_ket"] = -np.pi # const
 
-        # print(variables)
+
         parameters_ket = [x(internal_variables) for x in self.parameter_map_ket]
-        # print(parameters_ket)
+
         zip_ket = zip(parameters_ket, self.ket_generator.values())
         ket_t = self.ket
-        # print(parameters_ket)
+
 
         for argument in zip_ket:
-
             ket_t = ket_t.time_evolve(0.5 * argument[0], argument[1])
-
-
-
 
 
         #bra time evolution
@@ -240,11 +264,10 @@ class FQEBraKet:
         else:
             if self.constant_dict_bra != {}:
                 for const in self.constant_dict_bra.keys():
-                    internal_variables[const] = internal_variables[const] + self.constant_dict_bra[const]
-                if "1pi_name_gradient" in self.parameter_map_ket:
-                    internal_variables["1pi_name_gradient"] = np.pi
-                elif "-1pi_name_gradient" in self.parameter_map_ket:
-                    internal_variables["-1pi_name_gradient"] = -np.pi
+                    internal_variables[const] = internal_variables[const] + self.constant_dict_bra[
+                        const]
+                internal_variables["p0sign_bra"] = -np.pi  # const
+
             parameters_bra = [x(internal_variables) for x in self.parameter_map_bra]
             zip_bra = zip(parameters_bra, self.bra_generator.values())
             bra_t = self.bra
@@ -345,8 +368,9 @@ class FQEBraKet:
             p0 = make_excitation_generator_op(exct, form="p0")
             for key in p0.terms:
                 length += len(key)
-            name = "p0sign"
+
             if ket:
+                name = "p0sign_ket"
                 c = deepcopy(braket.constant_dict_ket)
                 if p0sign:
                     p0 = p0
@@ -373,7 +397,7 @@ class FQEBraKet:
                 braket.constant_dict_ket = c
                 braket.parameter_map_ket.insert(index+1, tq.Variable(name))
             else:
-
+                name = "p0sign_bra"
                 if p0sign:
                     braket.ket_generator[name] = p0
                 else:
