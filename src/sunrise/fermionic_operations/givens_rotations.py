@@ -1,5 +1,5 @@
 # from . import FCircuit,UR,Phase
-from sunrise import fermionic_excitation as fe
+from sunrise import fermionic_circuit as fe
 from tequila import QTensor,Variable,Objective
 import numpy
 import numbers
@@ -10,14 +10,14 @@ OPTIMIZED_ORDERING = "Optimized"
 
 def n_rotation(i:int, phi)->fe.FCircuit:
         """
-        Creates a quantum circuit that applies a phase rotation based on phi to both components (up and down) of a given qubit.
+        Creates a quantum circuit that applies a phase rotation based on phi to both components (up and down) of a given spatial orbital.
 
         Parameters:
         - i (int): The index of the qubit to which the rotation will be applied.
         - phi (float): The rotation angle. The actual rotation applied will be multiplied with -2 for both components.
 
         Returns:
-        - QCircuit: A quantum circuit object containing the sequence of rotations applied to the up and down components of the specified qubit.
+        - FCircuit: A quantum circuit object containing the sequence of rotations applied to the up and down components of the specified spatial orbital.
         """
 
         # Start a new circuit and apply rotations to each component.
@@ -30,7 +30,7 @@ def get_givens_circuit(unitary:numpy.ndarray, tol:float=1e-12, ordering:Union[li
     """
     Constructs a quantum circuit from a given real unitary matrix using Givens rotations.
 
-    This method decomposes a unitary matrix into a series of Givens and Rz (phase) rotations,
+    This method decomposes a unitary matrix into a series of Givens and Phase rotations,
     then constructs and returns a quantum circuit that implements this sequence of rotations.
 
     Parameters:
@@ -39,7 +39,7 @@ def get_givens_circuit(unitary:numpy.ndarray, tol:float=1e-12, ordering:Union[li
     - ordering (list of tuples or 'Optimized'): Custom ordering of indices for Givens rotations or 'Optimized' to generate them automatically.
 
     Returns:
-    - QCircuit: A quantum circuit implementing the series of rotations decomposed from the unitary.
+    - FCircuit: A quantum circuit implementing the series of rotations decomposed from the unitary.
     """
     # Decompose the unitary matrix into Givens and phase (Rz) rotations.
     theta_list, phi_list = get_givens_decomposition(unitary, tol, ordering)
@@ -164,7 +164,7 @@ def get_givens_decomposition(unitary:numpy.ndarray, tol:float=1e-12, ordering:Un
 
 def reconstruct_matrix_from_givens(n:int, theta_list:Union[list,tuple], phi_list:Union[list,tuple], to_real_if_possible:bool=True, tol:float=1e-12)->numpy.ndarray:
     """
-    Reconstructs a matrix from given Givens rotations and Rz diagonal rotations.
+    Reconstructs a matrix from given Givens rotations and Phase diagonal rotations.
     This function is effectively an inverse of get_givens_decomposition, and therefore only works with data in the same format as its output.
 
     Parameters:

@@ -3,8 +3,8 @@ from tequila import TequilaException,QCircuit,Objective,Molecule
 from tequila.quantumchemistry.qc_base import QuantumChemistryBase
 import typing
 import numpy as np
-from sunrise.fermionic_excitation.gates import *
-from sunrise.fermionic_excitation.circuit import FCircuit
+from sunrise.fermionic_operations.gates import *
+from sunrise.fermionic_operations.circuit import FCircuit
 
 def make_fermionic_hamiltonian(one_body_integrals, two_body_integrals, constant, *args, **kwargs):
 

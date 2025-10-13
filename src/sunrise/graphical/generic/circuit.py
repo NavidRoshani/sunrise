@@ -8,7 +8,7 @@ from ..quantum_chemistry import GenericExcitation
 from ..generic.gate import GenericGate
 from ..quantum_chemistry import DoubleExcitation
 from ..quantum_chemistry import OrbitalRotatorGate
-from ...fermionic_excitation.circuit import FCircuit
+from ...fermionic_operations.circuit import FCircuit
 from tequila import QCircuit
 from tequila.circuit.gates import X
 from typing import Union

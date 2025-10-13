@@ -1,6 +1,6 @@
 import tencirchem as tcc
 from sunrise.expval.tcc_engine.braket import EXPVAL
-from ..fermionic_excitation.circuit import FCircuit
+from ..fermionic_operations.circuit import FCircuit
 from tequila import TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective,assign_variable,grad
 from tequila.objective.objective import Variables,FixedVariable
 from tequila.quantumchemistry.chemistry_tools import NBodyTensor
@@ -20,10 +20,11 @@ class TCCBraket:
         if 'engine' in backend_kwargs:
             engine = backend_kwargs['engine']
             backend_kwargs.pop('engine')
-        else: engine = None
+        else: engine = 'pyscf'
         if 'backend' in  backend_kwargs:
             tcc.set_backend(backend_kwargs['backend'])
             backend_kwargs.pop('backend')
+        else: tcc.set_backend('numpy')
         if 'dtype' in backend_kwargs:
             tcc.set_dtype(backend_kwargs['dtype'])
             backend_kwargs.pop('dtype')

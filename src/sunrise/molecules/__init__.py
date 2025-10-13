@@ -2,9 +2,9 @@ import typing
 import warnings
 
 from tequila import TequilaWarning
-from .HybridBase import HybridBase
+from .hybrid_base.HybridBase import HybridBase
 from ..plot_MO import plot_MO
-from .MolecularPool import MolecularPool
+from .hybrid_base.MolecularPool import MolecularPool
 from tequila.quantumchemistry.chemistry_tools import ParametersQC
 
 SUPPORTED_QCHEMISTRY_BACKENDS = ["base", "pyscf"] # , "psi4", "madness"
@@ -18,7 +18,7 @@ except ImportError:
 
 try:
     import pyscf
-    from .pyscf_interface import PySCF
+    from .hybrid_base.pyscf_interface import PySCF
     INSTALLED_QCHEMISTRY_BACKENDS["pyscf"] = PySCF
 except ImportError:
     pass

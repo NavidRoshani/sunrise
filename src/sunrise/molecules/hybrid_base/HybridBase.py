@@ -14,9 +14,9 @@ from tequila.quantumchemistry import optimize_orbitals
 from tequila.quantumchemistry.qc_base import QuantumChemistryBase as qc_base
 import typing, numpy
 from itertools import product
-from sunrise.hybrid_base.encodings import known_encodings
+from sunrise.molecules.hybrid_base.encodings import known_encodings
 from tequila.quantumchemistry.encodings import EncodingBase
-from sunrise.hybrid_base.FermionicGateImpl import FermionicGateImpl
+from sunrise.molecules.hybrid_base.FermionicGateImpl import FermionicGateImpl
 from openfermion import FermionOperator
 import copy
 from sunrise.hybridization.hybridization import Graph

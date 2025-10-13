@@ -7,7 +7,7 @@ from tequila.quantumchemistry import qc_base
 from numpy import argwhere
 from pyscf.gto import Mole
 from sunrise.expval.pyscf_molecule import MoleculeFromPyscf
-from ..fermionic_excitation.circuit import FCircuit
+from ..fermionic_circuit.circuit import FCircuit
 from typing import Union
 
 def TequilaBraket(bra:FCircuit|None=None,ket:FCircuit|None=None,operator:Union[str,QubitHamiltonian]='H',*args,**kwargs):
