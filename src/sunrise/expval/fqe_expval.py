@@ -6,8 +6,7 @@ from sympy import false
 from tequila import QubitWaveFunction,TequilaException
 from tequila.quantumchemistry import QuantumChemistryBase
 import fqe
-from tequila.objective import Objective
-from tequila.autograd_imports import jax, __AUTOGRAD__BACKEND__
+
 
 
 from sunrise.expval.fqe_utils import *
@@ -18,11 +17,8 @@ from typing import List, Any
 
 from tequila.objective.objective import (
     Objective,
-    ExpectationValueImpl,
     Variable,
     assign_variable,
-    identity,
-    FixedVariable,
 )
 from tequila.objective import QTensor
 

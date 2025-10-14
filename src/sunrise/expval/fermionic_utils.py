@@ -1,4 +1,5 @@
 import openfermion
+from sympy.codegen.rewriting import powm1_opt
 from tequila import TequilaException,QCircuit,Objective,Molecule
 from tequila.quantumchemistry.qc_base import QuantumChemistryBase
 import typing
@@ -101,8 +102,8 @@ def make_excitation_generator_op(indices: typing.Iterable[typing.Tuple[int, int]
             op += openfermion.FermionOperator(Ni + Ma, 1.0)
         elif form.lower() == "p0":
             # P0: we only construct P0 and don't keep the original generator
-            op = openfermion.FermionOperator([], 1.0)  # Just for clarity will be subtracted anyway
-            op += openfermion.FermionOperator(Na + Mi, -1.0)
+            # op = openfermion.FermionOperator([], 1.0)  # Just for clarity will be subtracted anyway <- biggest lie i have ever heard it is useless and destroys everything why the fuck is this there
+            op = openfermion.FermionOperator(Na + Mi, -1.0)
             op += openfermion.FermionOperator(Ni + Ma, -1.0)
         else:
             raise TequilaException(
