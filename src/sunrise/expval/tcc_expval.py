@@ -7,16 +7,17 @@ from tequila.quantumchemistry.chemistry_tools import NBodyTensor
 from tequila.quantumchemistry import qc_base
 from tequila.utils.bitstrings import BitString
 from numbers import Number
-from numpy import ceil,argwhere,pi,prod,eye
+from numpy import ceil,argwhere,pi,prod,eye,zeros
 from pyscf.gto import Mole
 from pyscf.scf import RHF
 from sunrise.expval.pyscf_molecule import from_tequila
 from copy import deepcopy
 from typing import Union,List,Tuple
 from collections import defaultdict
+from openfermion import FermionOperator
 
 class TCCBraket:
-    def __init__(self,bra:FCircuit|None=None,ket:FCircuit|None=None,backend_kwargs:dict|None={},*args,**kwargs):
+    def __init__(self,bra:FCircuit|None=None,ket:FCircuit|None=None,operator:Union[str,FermionOperator,List[FermionOperator]]=None,backend_kwargs:dict|None={},*args,**kwargs):
         if 'engine' in backend_kwargs:
             engine = backend_kwargs['engine']
             backend_kwargs.pop('engine')
@@ -36,6 +37,21 @@ class TCCBraket:
                 raise TequilaException('Two circuits provided?')
             else:
                 ket = circuit
+        if 'U' in kwargs:
+            U = kwargs['U']
+            kwargs.pop('U')
+            if ket is not None:
+                raise TequilaException('Two circuits provided?')
+            else:
+                ket = U
+        if 'H' in kwargs:
+            H = kwargs['H']
+            kwargs.pop('H')
+            if operator is not None:
+                raise TequilaException('Two operators provided?')
+            else:
+                operator = H
+
 
         run_hf = (bra is None or bra.initial_state is None) and (ket is None or ket.initial_state is None)   
         if 'molecule' in kwargs and kwargs['molecule']:
@@ -146,6 +162,11 @@ class TCCBraket:
         if 'name' in kwargs:
             self._name = kwargs['name']
         else: self._name = 'Expectation Value' if self.is_diagonal else "Transition Value"
+        self.operator = operator
+        if self.operator == 'I':
+            self._name = 'Transition Element'
+        if self.operator is not None:
+            self.integrals_from_operators(self.operator)
         
     def minimize(self,**kwargs)->float:
         if 'init_guess_bra' in kwargs:
@@ -548,8 +569,7 @@ class TCCBraket:
         if self.is_diagonal:
             return self.ket 
         else:
-            return self.bra,self.ket
-            # raise Exception("not an Expectation Value") 
+            return [self.bra,self.ket]
     
     def count_measurements(self)->int:
         mes = 0
@@ -561,6 +581,53 @@ class TCCBraket:
             return mes
         else:
             return len(self.BK.civector(params=[.0 for _ in range(self.BK.n_variables_ket)]))
+
+    def integrals_from_operators(self,operator:Union[str,FermionOperator,List[FermionOperator]]=None,inplace:bool=True):
+        if inplace:
+            bk = self
+        else: bk = deepcopy(self)
+        if isinstance(operator,str):
+            if operator.upper()=="I":
+                nmo = len(bk.BK.aslst)
+                bk.BK.hamiltonian = None
+                bk.BK.int1e = zeros((nmo,nmo))
+                int2e = zeros((nmo,nmo,nmo,nmo))
+                for i in range(nmo):
+                    int2e[i,i,i,i] = 1#0.5
+                bk.BK.int2e = int2e
+                bk.BK.e_core = 0.
+                bk.BK.hamiltonian_lib = {}
+            elif operator.upper() == "H":
+                pass
+            else:
+                raise TequilaException(f"No operator str {operator} supported on TCC BraKet")
+        elif isinstance(operator,FermionOperator):
+            nmo = len(bk.BK.aslst)
+            int1e = zeros((nmo,nmo))
+            int2e = zeros((nmo,nmo,nmo,nmo))
+            c = 0
+            for oper,val in operator.terms.items():
+                if len(oper) ==2:
+                    int1e[oper[0][0]//2,oper[1][0]//2] = val # expected RHF integrals 
+                elif len(oper)==4:
+                    int2e[oper[0][0]//2,oper[3][0]//2,oper[1][0]//2,oper[2][0]//2] += val
+                elif not len(oper):
+                    c += val
+                else:
+                    raise TequilaException(f'Operator {oper} not supported, only one and two-body operators allowed')
+            bk.BK.e_core = c
+            bk.BK.int2e = 0.5*int2e
+            bk.BK.int1e = int1e
+            bk.BK.hamiltonian = None
+            bk.BK.hamiltonian_lib = {}
+        elif isinstance(operator,list) and all([isinstance(op,FermionOperator) for op in operator]):
+            operator = [deepcopy(self).integrals_from_operators(op,inplace=False) for op in operator]
+            return operator
+        else:
+            raise TequilaException(f"No operator {type(operator).__name__} supported")
+
+        if not inplace:
+            return bk
 
 def init_state_from_wavefunction(wvf:QubitWaveFunction):
     if not isinstance(wvf._state,dict):

@@ -1,15 +1,16 @@
 from __future__ import annotations
 from tequila.circuit._gates_impl import assign_variable
 from tequila.circuit.gates import QubitExcitationImpl,X,Phase
-from tequila import Variable
+from tequila import Variable,BitString
 from tequila.quantumchemistry.chemistry_tools import FermionicGateImpl
 from tequila.quantumchemistry.qc_base import QuantumChemistryBase
+from tequila.quantumchemistry.chemistry_tools import prepare_product_state
 from tequila.utils.exceptions import TequilaException, TequilaWarning
 from tequila import assign_variable,QCircuit,QubitWaveFunction,simulate
 from typing import List,Union,Iterable,Optional
 import copy
 from collections import defaultdict
-from numpy import ndarray,where,isclose,pi
+from numpy import ndarray,where,isclose,pi,array
 import warnings
 import numbers
 from copy import deepcopy
@@ -572,11 +573,22 @@ class FCircuit:
       
     def to_qcircuit(self,molecule:QuantumChemistryBase) -> QCircuit: #TODO
         U = deepcopy(self)
-        if molecule.transformation.up_then_down:
-            U = U.to_upthendown(molecule.n_orbitals)
-        else:
-            U = U.to_udud(molecule.n_orbitals)
         res = QCircuit()
+        if U.initial_state is None:
+            if molecule.transformation.up_then_down:
+                U = U.to_upthendown(molecule.n_orbitals)
+            else:
+                U = U.to_udud(molecule.n_orbitals)
+        else:
+            molecule.transformation.upthendown = True
+            U = U.to_udud(molecule.n_orbitals)
+            idx = where(array(self._initial_state.to_array())>1.e-6)[0]
+            if not len(idx):
+                pass
+            elif len(idx)>1:
+                warnings.warn("Don't now how to prepare the circuit initial state, skyped for safety",TequilaWarning)
+            else:
+                res += prepare_product_state(state=BitString.from_int(integer=idx[0],nbits=2*molecule.n_orbitals))
         for gate in U.gates:
             if gate.name == 'UR':
                 res += molecule.make_excitation_gate(indices=gate.indices[0],angle=gate.variables)#TODO: Control
@@ -591,7 +603,7 @@ class FCircuit:
     
     def _verify_state(self):
         state = self._initial_state.to_array()
-        indices = where(state>1.e-6)[0]
+        indices = where(array(state)>1.e-6)[0]
         nozero = [bin(i)[2:] for i in indices]
         ne = nozero[0].count('1')
         if not all([st.count('1')==ne for st in nozero]):

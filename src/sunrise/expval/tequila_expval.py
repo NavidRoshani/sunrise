@@ -8,9 +8,10 @@ from numpy import argwhere
 from pyscf.gto import Mole
 from sunrise.expval.pyscf_molecule import MoleculeFromPyscf
 from ..fermionic_operations.circuit import FCircuit
-from typing import Union
+from typing import Union,List
+from openfermion import FermionOperator
 
-def TequilaBraket(bra:FCircuit|None=None,ket:FCircuit|None=None,operator:Union[str,QubitHamiltonian]='H',*args,**kwargs):
+def TequilaBraket(bra:FCircuit|None=None,ket:FCircuit|None=None,operator:Union[str,QubitHamiltonian,FermionOperator,List[FermionOperator]]=None,backend_kwargs:dict={},*args,**kwargs):
 
     if 'circuit' in kwargs:
         circuit = kwargs['circuit']
@@ -27,7 +28,13 @@ def TequilaBraket(bra:FCircuit|None=None,ket:FCircuit|None=None,operator:Union[s
             raise TequilaException('Two circuits provided?')
         else:
             ket = U
-
+    if 'H' in kwargs:
+            H = kwargs['H']
+            kwargs.pop('H')
+            if operator is not None:
+                raise TequilaException('Two operators provided?')
+            else:
+                operator = H
 
     molecule = None
     if 'molecule' in kwargs and kwargs['molecule']:
@@ -86,11 +93,11 @@ def TequilaBraket(bra:FCircuit|None=None,ket:FCircuit|None=None,operator:Union[s
         elif 'n_electrons' in kwargs: 
             n_elec=kwargs['n_elec']
             kwargs.pop('n_elec')
-        elif ket is not None and ket.init_state is not None:
+        elif ket is not None and ket.initial_state is not None:
             if isinstance(ket.initial_state._state,dict):
                 n_elec = bin([*ket.initial_state._state.keys()][0])[2:].count('1')
             else:
-                n_elec = bin(argwhere(ket.init_state._state>1.e-6)[0][0])[2:].count('1')
+                n_elec = bin(argwhere(ket.initial_state._state>1.e-6)[0][0])[2:].count('1')
         else:
             raise TequilaException("No manner of defining the amount of electrons provided")
         if all([i is not None for i in[int2e,int1e]]):
@@ -110,16 +117,32 @@ def TequilaBraket(bra:FCircuit|None=None,ket:FCircuit|None=None,operator:Union[s
         ket = ket.to_upthendown(molecule.n_orbitals)
     if bra is not None:
         bra = bra.to_upthendown(molecule.n_orbitals)
-    U0ket =  QCircuit()
-    U0bra =  QCircuit()
+    U0ket =  QCircuit() #TODO
+    U0bra =  QCircuit() #TODO
+    shape = [1]
+    if operator is None:
+        operator = "H"
     if isinstance(operator,str):
         if operator == 'H':
             operator = molecule.make_hamiltonian()
         elif operator == "HCB":
             operator = molecule.make_hardcore_boson_hamiltonian()
+        elif operator == 'I':
+            qubits = []
+            if ket is not None:
+                qubits.extend(ket.qubits)
+            if bra is not None:
+                qubits.extend(bra.qubits)
+            qubits = list(set(qubits))
+            operator = tq.gates.I([qubits])
         else:
             operator = tq.paulis.from_string(operator)
+    elif isinstance(operator,FermionOperator):
+        operator = molecule.transformation(operator)
+    elif isinstance(operator,list) and isinstance(operator[0],FermionOperator):
+        shape = [len(operator)]
+        operator = [molecule.transformation(op) for op in operator]
     if bra is None or bra == ket:
-        return ExpectationValue(U=ket.to_qcircuit(molecule=molecule),H=operator,*args,**kwargs)
+        return ExpectationValue(U=ket.to_qcircuit(molecule=molecule),H=operator,shape=shape,**backend_kwargs)
     else:
-        return BraKet(bra=bra.to_qcircuit(molecule=molecule),ket=ket.to_qcircuit(molecule=molecule),operator=operator,*args,**kwargs)
+        return BraKet(bra=bra.to_qcircuit(molecule=molecule),ket=ket.to_qcircuit(molecule=molecule),shape=shape,operator=operator,**backend_kwargs)

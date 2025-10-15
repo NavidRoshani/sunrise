@@ -1,3 +1,4 @@
+from sunrise import molecules
 from sunrise.molecules import Molecule
 from sunrise.plot_MO import plot_MO
 from sunrise.graphical.qpic_visualization import qpic_to_pdf,qpic_to_png

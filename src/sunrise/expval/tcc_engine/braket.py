@@ -208,7 +208,7 @@ class EXPVAL(UCC):
         self.opt_res = opt_res
         return opt_res.e
     
-    def expval(self, angles : Tensor = None, engine: str = None) -> float:
+    def expval(self, angles : Tensor = None, engine: str = None,hamiltonian=None) -> float:
         """
         Evaluate the total Expectation Value.
 
@@ -239,20 +239,23 @@ class EXPVAL(UCC):
         >>> round(uccsd.energy([0, 0]), 8)  # HF state
         -1.11670614
         """
+        if engine is None:
+            engine = self.engine
         if self.is_diagonal():
             return self.energy(angles=angles,engine=engine)
         self._sanity_check()
         if angles is None:
             angles = []
         angles  = self._check_params_argument(angles)
-        hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
+        if hamiltonian is None:
+            hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
         e , s = get_expval(angles=angles,hamiltonian=hamiltonian, n_qubits=self.n_qubits, n_elec_s=self.n_elec_s,total_variables=self.total_variables,
                        engine= engine,mode=self.mode,ex_ops=self.ex_ops_ket , ex_ops_bra=self.ex_ops_bra, 
                        params=self.variables_ket ,params_bra=self.variables_bra,
                        init_state=self.init_state_ket , init_state_bra=self.init_state_bra)
         return float(e) + self.e_core*s
 
-    def energy(self, angles : Tensor = None, engine: str = None) -> float:
+    def energy(self, angles : Tensor = None, engine: str = None,hamiltonian=None) -> float:
         """
         Evaluate the total Expectation Value.
 
@@ -283,18 +286,21 @@ class EXPVAL(UCC):
         >>> round(uccsd.energy([0, 0]), 8)  # HF state
         -1.11670614
         """
+        if engine is None:
+            engine = self.engine
         if not self.is_diagonal():
             return self.expval(angles=angles,engine=engine)
         self._sanity_check()
         if angles is None:
             angles = []
         angles  = self._check_params_argument(angles)
-        hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
+        if hamiltonian is None:
+            hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
         e = get_energy(angles=angles,hamiltonian=hamiltonian, n_qubits=self.n_qubits, n_elec_s=self.n_elec_s,total_variables=self.total_variables,
                        engine= engine,mode=self.mode,ex_ops=self.ex_ops_ket,params=self.variables_ket,init_state=self.init_state_ket)
         return float(e) + self.e_core
 
-    def expval_and_grad(self, angles : Tensor = None, engine: str = None) -> Tuple[float, Tensor]:
+    def expval_and_grad(self, angles : Tensor = None, engine: str = None,hamiltonian=None) -> Tuple[float, Tensor]:
         """
         Evaluate the total Expectation Value and parameter gradients.
 
@@ -330,9 +336,12 @@ class EXPVAL(UCC):
         >>> g  # doctest:+ELLIPSIS
         array([..., ...])
         """
+        if engine is None:
+            engine = self.engine
         self._sanity_check()
         angles  = self._check_params_argument(angles)
-        hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
+        if hamiltonian is None:
+            hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
         e, g ,s= get_expval_and_grad(hamiltonian=hamiltonian, n_qubits=self.n_qubits, angles= angles,total_variables=self.total_variables,
                                    n_elec_s=self.n_elec_s, engine=engine, mode=self.mode, 
                                    ex_ops=self.ex_ops_ket , ex_ops_bra=self.ex_ops_bra,
@@ -340,8 +349,7 @@ class EXPVAL(UCC):
                                    init_state=self.init_state_ket, init_state_bra= self.init_state_bra) 
         return float(e + self.e_core*s), tc.backend.numpy(g)
 
-
-    def energy_and_grad(self, angles: Tensor = None, engine: str = None) -> Tuple[float, Tensor]:
+    def energy_and_grad(self, angles: Tensor = None, engine: str = None,hamiltonian=None) -> Tuple[float, Tensor]:
             """
             Evaluate the total energy and parameter gradients.
 
@@ -377,9 +385,12 @@ class EXPVAL(UCC):
             >>> g  # doctest:+ELLIPSIS
             array([..., ...])
             """
+            if engine is None:
+                engine = self.engine
             self._sanity_check()
             angles = self._check_params_argument(angles)
-            hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
+            if hamiltonian is None:
+                hamiltonian, _, engine = self._get_hamiltonian_and_core(engine)
             e, g = get_energy_and_grad(
             angles=angles, hamiltonian=hamiltonian,n_qubits=self.n_qubits,n_elec_s= self.n_elec_s, 
             total_variables=self.total_variables,params=self.variables_ket,ex_ops=self.ex_ops_ket, 

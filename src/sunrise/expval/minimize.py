@@ -8,15 +8,20 @@ from tequila.circuit.gradient import grad as tgrad
 from tequila.objective import QTensor,format_variable_dictionary
 from tequila.simulators.simulator_api import compile
 from tequila.quantumchemistry import optimize_orbitals as tq_opt_orbs
+from tequila.quantumchemistry.orbital_optimizer import OptimizeOrbitalsResult
 import typing
-from numpy import vectorize,zeros,where
+from numpy import vectorize,zeros
 from tequila.autograd_imports import jax, __AUTOGRAD__BACKEND__
 from typing import Dict, Union, Hashable,Callable
 from numbers import Number
 from numbers import Real as RealNumber
-from sunrise import FCircuit,Braket
+from . import Braket
+from ..fermionic_operations import FCircuit
+from ..molecules.hybrid_base import HybridBase
+from ..molecules.fermionic_base import FermionicBase
 from sunrise.expval.pyscf_molecule import MoleculeFromPyscf 
 from pyscf.gto import Mole
+import warnings
 
 def minimize(objective,method: str = "bfgs",variables: list = None,initial_values: Union[dict, Number, Callable] = 0.0,maxiter: int = None,silent:bool=True,*args,**kwargs):
     if type(objective).__name__ in  ['TCCBraket','FQEBraKet']:
@@ -293,6 +298,8 @@ def simulate(
             )
         )
     
+    if isinstance(objective,list):
+        return [simulate(op,variables,samples,backend,noise,device,initial_state,*args,**kwargs) for op in objective]
     if type(objective).__name__ in ['TCCBraket','FQEBraKet']:
         return objective(variables=variables)
     if isinstance(objective,FCircuit):
@@ -328,22 +335,17 @@ def simulate(
             g = zeros((nmo,nmo,nmo,nmo))
             mol = Molecule(geometry= "\n".join(f"H 0.0 0.0 {i}" for i in range(nmo)),basis_set='sto-3g',one_body_integrals=h,two_body_integrals=g,transformation=transformation)
             if avisa and not all([ not g.reordered for g in objective.gates]):
-                raise TequilaWarning("Some indices were provided in reordered, the output may not be correct")
+                warnings.warn("Some indices were provided in reordered, the output may not be correct",TequilaWarning)
         mol.transformation.up_then_down = True
-        ini = objective.initial_state.to_array()
-        main = where(ini>1.e-6)[0]
-        if len(main) >1:
-            raise NotImplementedError('Not working yet')
-        else:#TODO: This is a temporaly bypass while more sofisticate initial states
-            U = objective.to_qcircuit(mol)
-            return simulate(objective=U,initial_state=int(bin(main[0])[2:]),variables=variables,samples=samples,backend=backend,noise=noise,device=device,args=args,kwargs=kwargs)
-        #IDEA this is should be continued when fixed
-        ini = f''.join(f'{ini[i].real}|{bin(i)[2:]}>'.format() for i in main)
-        ini = QubitWaveFunction.from_string(f''.join(f'{ini[i].real}|{bin(i)[2:]}>'.format() for i in main))
         U = objective.to_qcircuit(mol)
-        return  simulate(objective=U,initial_state=ini,variables=variables,samples=samples,backend=backend,noise=noise,device=device,args=args,kwargs=kwargs)
+        #TODO: This is a temporaly bypass while more sofisticate initial states
+        return simulate(objective=U,variables=variables,samples=samples,backend=backend,noise=noise,device=device,args=args,kwargs=kwargs)
+        #IDEA this is should be continued when fixed
+        # ini = f''.join(f'{ini[i].real}|{bin(i)[2:]}>'.format() for i in main)
+        # ini = QubitWaveFunction.from_string(f''.join(f'{ini[i].real}|{bin(i)[2:]}>'.format() for i in main))
+        # U = objective.to_qcircuit(mol)
+        # return  simulate(objective=U,initial_state=ini,variables=variables,samples=samples,backend=backend,noise=noise,device=device,args=args,kwargs=kwargs)
             
-        
     compiled_objective = compile(
         objective=objective,
         samples=samples,
@@ -359,9 +361,9 @@ def simulate(
 
 
 
-#TODO: We need a proper fermionic molecule for this
+#TODO: Not ready yet
 def optimize_orbitals(molecule,circuit=FCircuit,backend:str='tequila',pyscf_arguments=None,silent=False,backend_kwargs=None,initial_guess=None,return_mcscf=False,
-    molecule_factory=None,molecule_arguments=None,restrict_to_active_space=True,*args,**kwargs):
+    molecule_factory=None,molecule_arguments=None,restrict_to_active_space=True,*args,**kwargs)->OptimizeOrbitalsResult:
     """
 
     Parameters
@@ -391,12 +393,30 @@ def optimize_orbitals(molecule,circuit=FCircuit,backend:str='tequila',pyscf_argu
         Optimized Tequila Molecule
     """
     class vqe_solver:
-        def __init__(self,backend:str='tequila',circuit:FCircuit=None) -> None:
+        def __init__(self,backend:str='tequila',circuit:FCircuit=None):
             self.backend = backend
             self.U = circuit
         def __call__(self, H, circuit, molecule, **backend_kwargs):
             return Braket(backend=backend,molecule=molecule,circuit=self.U,kwargs=backend_kwargs)
-    
- 
-    return tq_opt_orbs(molecule=molecule,circuit=circuit.to_qcircuit(molecule=molecule),vqe_solver=vqe_solver(backend=backend,circuit=circuit),pyscf_arguments=pyscf_arguments,silent=silent,initial_guess=initial_guess,return_mcscf=return_mcscf,
-            molecule_factory=molecule_factory,molecule_arguments=molecule_arguments,restrict_to_active_space=restrict_to_active_space,*args,**kwargs)#,args=args,kwargs=kwargs)
+    if isinstance(molecule,HybridBase):
+        if molecule_arguments is None:
+            molecule_arguments = {"select": molecule.select, "condense": molecule.condense,
+                                  "two_qubit": molecule.two_qubit,
+                                  "integral_tresh": molecule.integral_tresh,"parameters": molecule.parameters,
+                                  "transformation": molecule.transformation,"backend":'pyscf'}
+        else:
+            mol_args = {"select": molecule.select, "condense": molecule.condense,
+                                  "two_qubit": molecule.two_qubit,
+                                  "integral_tresh": molecule.integral_tresh,"parameters": molecule.parameters,
+                                  "transformation": molecule.transformation,"backend":'pyscf'}
+            mol_args.update(molecule_arguments)
+            molecule_arguments = mol_args
+        if molecule_factory is None:
+            molecule_factory = HybridBase
+    elif isinstance(molecule,FermionicBase):
+        if molecule_factory is None:
+            molecule_factory = FermionicBase
+    result = tq_opt_orbs(molecule=molecule,circuit=circuit.to_qcircuit(molecule=molecule),vqe_solver=vqe_solver(backend=backend,circuit=circuit),pyscf_arguments=pyscf_arguments,silent=silent,initial_guess=initial_guess,return_mcscf=return_mcscf,molecule_factory=molecule_factory,molecule_arguments=molecule_arguments,restrict_to_active_space=restrict_to_active_space,args=args,kwargs=kwargs)
+    if isinstance(molecule,HybridBase):
+        result.molecule = HybridBase(**molecule_arguments, integral_manager=result.molecule.integral_manager)
+    return result

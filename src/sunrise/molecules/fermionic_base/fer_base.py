@@ -4,27 +4,22 @@ from tequila import TequilaException, BitString, TequilaWarning
 from tequila.hamiltonian import QubitHamiltonian
 from sunrise.fermionic_operations import FCircuit
 from sunrise.fermionic_operations import gates
-from tequila.objective.objective import Variable, Variables, ExpectationValue, Objective
+from tequila.objective.objective import Variable, Variables,Objective
 from tequila import QTensor
 
-from tequila.simulators.simulator_api import simulate
-from tequila.utils import to_float
+# from tequila.simulators.simulator_api import simulate
+from ...expval.minimize import simulate
+from ...expval import Braket
 from tequila.quantumchemistry.chemistry_tools import (
-    ActiveSpaceData,
-    FermionicGateImpl,
     prepare_product_state,
     ClosedShellAmplitudes,
     Amplitudes,
     ParametersQC,
     NBodyTensor,
-    IntegralManager,
 )
 import typing
 import numpy
-import numbers
 from itertools import product
-import tequila.grouping.fermionic_functions as ff
-
 from sunrise.fermionic_operations.givens_rotations import get_givens_circuit as __get_givens_circuit
 from sunrise.fermionic_operations.givens_rotations import n_rotation as __n_rotation
 
@@ -392,7 +387,7 @@ class FermionicBase(QuantumChemistryBase):
         """
         if isinstance(orbital_coefficients,FCircuit):
             assert all([gate.name in ['UR','Ph'] for gate in orbital_coefficients.gates])
-
+            raise NotImplementedError("Not yet")
         U = numpy.eye(self.integral_manager.orbital_coefficients.shape[0])
         # mo_coeff by default only acts on the active space
         active_indices = [o.idx_total for o in self.integral_manager.active_orbitals]
@@ -703,6 +698,7 @@ class FermionicBase(QuantumChemistryBase):
         n_state = [0]*len(state)
         for i in range(len(state)):
             n_state[d[i]] = state[i]
+        n_state = prepare_product_state(BitString.from_array(state)) 
         U = FCircuit()
         U.initial_state = n_state
         # prevent trace out in direct wfn simulation
@@ -1040,7 +1036,7 @@ class FermionicBase(QuantumChemistryBase):
 
         U = FCircuit()
         if include_reference_ansatz:
-            U.initial_state = self.prepare_reference()
+            U.initial_state = self.prepare_reference().initial_state
 
         amplitudes = initial_amplitudes
         if hasattr(initial_amplitudes, "lower"):
@@ -1151,6 +1147,7 @@ class FermionicBase(QuantumChemistryBase):
         ordering="dirac",
         rdm_trafo: QubitHamiltonian = None,
         evaluate=True,
+        backend:str='tequila'
     ):
         """
         Computes the one- and two-particle reduced density matrices (rdm1 and rdm2) given
@@ -1202,29 +1199,8 @@ class FermionicBase(QuantumChemistryBase):
             raise TequilaException("Need to specify a Quantum Circuit.")
 
         def _get_hcb_op(op_tuple):
-            """Build the hardcore boson operators: b^\dagger_ib_j + h.c. in qubit encoding"""
-            if len(op_tuple) == 2:
-                return 2 * Sm(op_tuple[0][0]) * Sp(op_tuple[1][0])
-            elif len(op_tuple) == 4:
-                if (op_tuple[0][0] == op_tuple[1][0]) and (op_tuple[2][0] == op_tuple[3][0]):  # iijj uddu+duud
-                    return Sm(op_tuple[0][0]) * Sp(op_tuple[2][0]) + Sm(op_tuple[2][0]) * Sp(op_tuple[0][0])
-                if (
-                    (op_tuple[0][0] == op_tuple[2][0])
-                    and (op_tuple[1][0] == op_tuple[3][0])
-                    and (op_tuple[0][0] != op_tuple[1][0])
-                    and (op_tuple[2][0] != op_tuple[3][0])
-                ):  # ijij uuuu+dddd
-                    return 4 * Sm(op_tuple[0][0]) * Sm(op_tuple[1][0]) * Sp(op_tuple[2][0]) * Sp(op_tuple[3][0])
-                if (
-                    (op_tuple[0][0] == op_tuple[3][0])
-                    and (op_tuple[1][0] == op_tuple[2][0])
-                    and (op_tuple[0][0] != op_tuple[1][0])
-                    and (op_tuple[2][0] != op_tuple[3][0])
-                ):  # ijji abba
-                    return -2 * Sm(op_tuple[0][0]) * Sm(op_tuple[1][0]) * Sp(op_tuple[2][0]) * Sp(op_tuple[3][0])
-            else:
-                return Zero()
-
+            raise TequilaException('No HCB operations in Fermionic Backends')
+        
         def _get_of_op(operator_tuple):
             """Returns operator given by a operator tuple as OpenFermion - Fermion operator"""
             op = openfermion.FermionOperator(operator_tuple)
@@ -1386,22 +1362,20 @@ class FermionicBase(QuantumChemistryBase):
             qops += _build_2bdy_operators_spinful() if get_rdm2 else []
 
         # Transform operator lists to QubitHamiltonians
-        qops = [_get_qop_hermitian(op) for op in qops]
+        # qops = [_get_qop_hermitian(op) for op in qops]
 
         # Compute expected values
         rdm1 = None
         rdm2 = None
-        from tequila import QTensor
-
         if evaluate:
             if rdm_trafo is None:
-                evals = simulate(ExpectationValue(H=qops, U=U, shape=[len(qops)]), variables=variables) #TODO: USE sun.simulate
+                evals = simulate(Braket(H=qops, U=U, shape=[len(qops)],backend=backend,molecule=self), variables=variables)
             else:
                 qops = [rdm_trafo.dagger() * qops[i] * rdm_trafo for i in range(len(qops))]
-                evals = simulate(ExpectationValue(H=qops, U=U, shape=[len(qops)]), variables=variables)
+                evals = simulate(Braket(H=qops, U=U, shape=[len(qops)],backend=backend,molecule=self), variables=variables)
         else:
             if rdm_trafo is None:
-                evals = [ExpectationValue(H=x, U=U) for x in qops]
+                evals = [Braket(H=x, U=U,backend=backend,molecule=self) for x in qops]
                 N = n_MOs if spin_free else n_SOs
                 rdm1 = QTensor(shape=[N, N])
                 rdm2 = QTensor(shape=[N, N, N, N])
