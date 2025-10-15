@@ -11,4 +11,5 @@ from sunrise.fermionic_operations import gates
 from sunrise.fermionic_operations.circuit import FCircuit
 from sunrise.expval.pyscf_molecule import *
 from sunrise.expval.minimize import grad,minimize,simulate
+from sunrise.expval.optimize import optimize_orbitals
 from sunrise import graphical

@@ -117,8 +117,6 @@ def TequilaBraket(bra:FCircuit|None=None,ket:FCircuit|None=None,operator:Union[s
         ket = ket.to_upthendown(molecule.n_orbitals)
     if bra is not None:
         bra = bra.to_upthendown(molecule.n_orbitals)
-    U0ket =  QCircuit() #TODO
-    U0bra =  QCircuit() #TODO
     shape = [1]
     if operator is None:
         operator = "H"
