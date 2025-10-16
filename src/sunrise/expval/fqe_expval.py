@@ -1,26 +1,18 @@
-from typing import Union, Tuple
+from typing import Union, Tuple, List, Any, Dict
 
-import numpy as np
 import tequila as tq
-from sympy import false
+from numpy.ma.core import shape
 from tequila import QubitWaveFunction,TequilaException
-from tequila.quantumchemistry import QuantumChemistryBase
+from tequila.objective.objective import Objective,Variables,assign_variable
+
 import fqe
-
-
 
 from sunrise.expval.fqe_utils import *
 from sunrise.expval.fermionic_utils import *
 from sunrise.fermionic_operations.circuit import FCircuit
 
-from typing import List, Any
 
-from tequila.objective.objective import (
-    Objective,
-    Variable,
-    assign_variable,
-)
-from tequila.objective import QTensor
+
 
 class FQEBraKet:
 
@@ -30,13 +22,58 @@ class FQEBraKet:
                  mol: QuantumChemistryBase= None,
                  *args, **kwargs
                  ):
+        """
 
+        :param ket: Fcircuit representing the ket state. 
+        :param bra (optional): Fcircuit representing the bra state. If None bra is assumed to be the same as the ket
+        :param one_body_integrals (optional): one body integral used for calculating the Hamiltonian. 
+                                            If None Hamiltonian is not constructed.
+        :param two_body_integrals (optional): two body integral used for calculating the Hamiltonian
+                                            If None Hamiltonian is not constructed.
+        :param constant (optional): constant term used for calculating the Hamiltonian.
+                                            If None Hamiltonian is not constructed.
+        :param mol (optional): QuantumChemistryBase molecule object containing molecule specidic information.
+                    If None, number of electrons must be defined in the kwargs and Hamiltonian is not constructed.
+        :param args:
+        :param kwargs:
+                    ket: FCircuit representing the ket state.
+                    ket_fcircuit: FCircuit representing the ket state.
+
+                    bra: FCircuit representing the bra state.
+                    bra_fcircuit: FCircuit representing the bra state.
+
+                    molecule: QuantumChemistryBase molecule object containing molecule specidic information.
+                    mol: QuantumChemistryBase molecule object containing molecule specidic information.
+
+                    one_body_integrals: one body integral used for calculating the Hamiltonian.
+                    h: one body integral used for calculating the Hamiltonian.
+                    init1e: one body integral used for calculating the Hamiltonian.
+
+                    two_body_integrals: two body integral used for calculating the Hamiltonian.
+                    g: two body integral used for calculating the Hamiltonian.
+                    init2e: two body integral used for calculating the Hamiltonian.
+
+                    constant: constant term used for calculating the Hamiltonian.
+                    c: constant term used for calculating the Hamiltonian.
+
+                    operator: string or openfermion FermionOperator defining a custom operator to be used.
+                              If string is "h" or "hamiltonian" Hamiltonian is constructed from integrals or molecule.
+                              If string is "i" or "identity" the identity operator is used
+
+                    n_orbitals: number of orbitals in the system. Needed if no molecule or integrals are provided.
+                    n_ele: number of electrons in the system. Needed if no molecule is provided.
+
+
+        """
         if "ket_fcircuit" in kwargs:
             ket = kwargs["ket_fcircuit"]
             kwargs.pop("ket_fcircuit")
         elif "ket" in kwargs:
             ket = kwargs["ket"]
             kwargs.pop("ket")
+        elif "U" in kwargs:
+            ket = kwargs["U"]
+            kwargs.pop("U")
 
         if ket is None:
             raise ValueError("No ket fcircuit provided")
@@ -89,10 +126,14 @@ class FQEBraKet:
 
         operator_flag_h = False
         operator_flag_custom = False
-        if "operator" in kwargs:
+        if 'H' is kwargs and kwargs['H'] is not None:
+            if 'operator' in kwargs and kwargs['operator'] is not None:
+                raise TequilaException('Two operators provided?')
+            kwargs['operator'] = kwargs['H']
+            kwargs.pop('H')
+        if "operator" in kwargs and kwargs["operator"] is not None :
             operator = kwargs["operator"]
             kwargs.pop("operator")
-
             if isinstance(operator, str):
                 if operator.lower() == "h" or operator.lower() == "hamiltonian":
                     operator_flag_h = True
@@ -100,12 +141,12 @@ class FQEBraKet:
                    pass
                 else:
                     raise TequilaException("Not implemented operator {}".format(operator))
+
             elif isinstance(operator,openfermion.ops.operators.fermion_operator.FermionOperator):
                 operator_flag_custom = True
+
             else:
                 raise TequilaException("Not recognized format {}".format(operator))
-
-
 
 
         if (one_body_integrals is None and two_body_integrals is not None) \
@@ -131,18 +172,24 @@ class FQEBraKet:
                 self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of)
                 self.n_orbitals = one_body_integrals.shape[0]
                 n_ele = kwargs.get("n_ele")
+
+            elif operator_flag_custom is True:
+
+                self.h_of = operator
+                self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of)
+                if mol is None:
+                    self.n_orbitals = kwargs.get("n_orbitals")
+                    n_ele = kwargs.get("n_ele")
+                else:
+                    c,h,g = mol.get_integrals()
+                    self.n_orbitals = h.shape[0]
+                    n_ele = mol.n_electrons
             elif molecule_flag is True:
                 c,h,g = mol.get_integrals()
                 self.h_of = make_fermionic_hamiltonian(one_body_integrals=h, two_body_integrals=g.elems, constant=c)
                 self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of)
                 self.n_orbitals = h.shape[0]
                 n_ele = mol.n_electrons
-            elif operator_flag_custom is True:
-                self.h_of = operator
-                self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of)
-                self.n_orbitals = kwargs.get("n_orbitals")
-                n_ele = kwargs.get("n_ele")
-
         else:
             self.h_fqe = None
             self.n_orbitals = kwargs.get("n_orbitals")
@@ -222,15 +269,21 @@ class FQEBraKet:
         self.bra_time_evolved = None
 
 
-    def __call__(self, variables, *args, **kwargs):
+    def __call__(self, variables, *args, **kwargs) -> float:
+        """
 
+        :param variables: Variables to be used on the time evolution. Can be a list, dict or tequila.Variables object
+        :param args:
+        :param kwargs:
+        :return: Expectation value <bra|H|ket> or <ket|ket> if no Hamiltonian is provided
+        """
         internal_variables = variables
         if self.bra is not None:
             parameter_map = self.parameter_map_bra + self.parameter_map_ket
         else:
             parameter_map = self.parameter_map_ket
 
-        if isinstance(internal_variables, tq.objective.objective.Variables):
+        if isinstance(internal_variables, Variables):
             pass
         else:
             if type(internal_variables) is not dict:
