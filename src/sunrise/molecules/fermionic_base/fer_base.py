@@ -31,6 +31,7 @@ try:
     import openfermion
     from openfermion.chem import MolecularData
     from openfermion.ops import FermionOperator as OFFermionOperator
+    from openfermion.utils import hermitian_conjugated
 except Exception:
     try:
         from openfermion.hamiltonians import MolecularData
@@ -1211,9 +1212,8 @@ class FermionicBase(QuantumChemistryBase):
             return op
 
         def _get_qop_hermitian(of_operator):
-            """Returns Hermitian part of Fermion operator as QubitHamiltonian"""
-            return of_operator
-            raise TequilaException('No HCB operations in Fermionic Backends')
+            """Returns Hermitian"""
+            return of_operator + hermitian_conjugated(of_operator)
 
         def _build_1bdy_operators_spinful() -> list:
             """Returns spinful one-body operators as a symmetry-reduced list of QubitHamiltonians"""
@@ -1366,8 +1366,7 @@ class FermionicBase(QuantumChemistryBase):
             qops += _build_2bdy_operators_spinful() if get_rdm2 else []
 
         # Transform operator lists to QubitHamiltonians
-        # qops = [_get_qop_hermitian(op) for op in qops]
-
+        qops = [_get_qop_hermitian(op) for op in qops]
         # Compute expected values
         rdm1 = None
         rdm2 = None
