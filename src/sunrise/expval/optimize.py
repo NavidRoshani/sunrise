@@ -4,9 +4,10 @@ from tequila.quantumchemistry import optimize_orbitals as tq_opt_orbs
 from tequila.quantumchemistry.orbital_optimizer import OptimizeOrbitalsResult
 from ..molecules.fermionic_base.fer_base import FermionicBase
 from ..molecules.hybrid_base.HybridBase import HybridBase
+from .minimize import minimize
 
 
-def optimize_orbitals(molecule,circuit=FCircuit,backend:str='tequila',pyscf_arguments=None,silent=False,backend_kwargs=None,initial_guess=None,return_mcscf=False,
+def optimize_orbitals(molecule,circuit=FCircuit,backend:str='tequila',pyscf_arguments=None,silent=False,backend_kwargs:dict=None,initial_guess=None,return_mcscf=False,
     molecule_factory=None,molecule_arguments=None,restrict_to_active_space=True,*args,**kwargs)->OptimizeOrbitalsResult:
     """
 
@@ -41,7 +42,7 @@ def optimize_orbitals(molecule,circuit=FCircuit,backend:str='tequila',pyscf_argu
             self.backend = backend
             self.U = circuit
         def __call__(self, H, circuit, molecule, **backend_kwargs):
-            return Braket(backend=backend,molecule=molecule,circuit=self.U,kwargs=backend_kwargs)
+            return minimize(Braket(backend=backend,molecule=molecule,circuit=self.U,kwargs=backend_kwargs),**backend_kwargs)
     vqe_solver = solver(backend=backend,circuit=circuit)
     
     if isinstance(molecule,HybridBase):
@@ -64,6 +65,15 @@ def optimize_orbitals(molecule,circuit=FCircuit,backend:str='tequila',pyscf_argu
     elif isinstance(molecule,FermionicBase):
         if molecule_factory is None:
             molecule_factory = FermionicBase
+        molecule.fermionic_backend = backend
+        if molecule_arguments is None:
+            molecule_arguments = {'fermionic_backend':backend,'parameters':molecule.parameters,'integral_manager':molecule.integral_manager}
+        else: 
+            molecule_arguments['fermionic_backend']=backend
+            if 'parameters' not in molecule_arguments:
+                molecule_arguments['parameters'] = molecule.parameters
+            if 'integral_manager' not in molecule_arguments:
+                molecule_arguments['integral_manager'] = molecule.parameters
     else:
         circuit.to_qcircuit(molecule=molecule)
         vqe_solver = None

@@ -71,7 +71,11 @@ class FermionicBase(QuantumChemistryBase):
         args
         kwargs
         """
-
+        self.transformation = None
+        self.fermionic_backend = None
+        if 'fermionic_backend' in kwargs:
+            self.fermionic_backend = kwargs['fermionic_backend']
+            kwargs.pop('fermionic_backend')
         self.parameters = parameters
         n_electrons = parameters.total_n_electrons
         if "n_electrons" in kwargs:
@@ -1147,7 +1151,8 @@ class FermionicBase(QuantumChemistryBase):
         ordering="dirac",
         rdm_trafo: QubitHamiltonian = None,
         evaluate=True,
-        backend:str='tequila'
+        backend:str=None,
+        use_hcb:bool=False
     ):
         """
         Computes the one- and two-particle reduced density matrices (rdm1 and rdm2) given
@@ -1197,7 +1202,6 @@ class FermionicBase(QuantumChemistryBase):
         # Check whether unitary circuit is not 0
         if U is None:
             raise TequilaException("Need to specify a Quantum Circuit.")
-
         def _get_hcb_op(op_tuple):
             raise TequilaException('No HCB operations in Fermionic Backends')
         
@@ -1367,6 +1371,8 @@ class FermionicBase(QuantumChemistryBase):
         # Compute expected values
         rdm1 = None
         rdm2 = None
+        if backend is None:
+            backend = self.fermionic_backend
         if evaluate:
             if rdm_trafo is None:
                 evals = simulate(Braket(H=qops, U=U, shape=[len(qops)],backend=backend,molecule=self), variables=variables)

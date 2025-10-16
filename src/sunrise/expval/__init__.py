@@ -67,4 +67,4 @@ def Braket(backend:str='tequila',operator:Union[str,List[FermionOperator],Fermio
     if isinstance(operator,list):
         return [INSTALLED_FERMIONIC_BACKENDS[backend.lower()](operator=op,*args,**kwargs) for op in operator]
     #any kwargs and circuit form should be managed inside each class
-    return INSTALLED_FERMIONIC_BACKENDS[backend.lower()](*args,**kwargs) 
+    return INSTALLED_FERMIONIC_BACKENDS[backend.lower()](operator=operator,*args,**kwargs) 
