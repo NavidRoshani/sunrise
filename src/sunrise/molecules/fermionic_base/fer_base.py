@@ -573,8 +573,8 @@ class FermionicBase(QuantumChemistryBase):
         else:
             integral_manager = copy.deepcopy(self.integral_manager)
             integral_manager.transform_to_native_orbitals()
-            result = QuantumChemistryBase(
-                parameters=self.parameters, integral_manager=integral_manager, transformation=self.transformation
+            result = FermionicBase(
+                parameters=self.parameters, integral_manager=integral_manager, fermionic_backend= self.fermionic_backend
             )
             return result
 
@@ -703,7 +703,7 @@ class FermionicBase(QuantumChemistryBase):
         n_state = [0]*len(state)
         for i in range(len(state)):
             n_state[d[i]] = state[i]
-        n_state = prepare_product_state(BitString.from_array(state)) 
+        n_state = prepare_product_state(BitString.from_array(n_state)) 
         U = FCircuit()
         U.initial_state = n_state
         # prevent trace out in direct wfn simulation
@@ -879,7 +879,7 @@ class FermionicBase(QuantumChemistryBase):
         # first layer
         U = FCircuit()
         if include_reference:
-            U.initial_state = self.prepare_reference()
+            U = self.prepare_reference()
         U += self.make_upccgsd_layer(
             include_singles=S,
             include_doubles=D,
@@ -890,7 +890,6 @@ class FermionicBase(QuantumChemistryBase):
             *args,
             **kwargs,
         )
-
         for k in range(1, order):
             U += self.make_upccgsd_layer(
                 include_singles=S,

@@ -74,6 +74,9 @@ class FQEBraKet:
         elif "U" in kwargs:
             ket = kwargs["U"]
             kwargs.pop("U")
+        elif "circuit" in kwargs:
+            ket = kwargs["circuit"]
+            kwargs.pop("circuit")
 
         if ket is None:
             raise ValueError("No ket fcircuit provided")

@@ -391,7 +391,7 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #Here to tequila
                 if isinstance(bar[i],Number):
-                    bar[i] = assign_variable(-2*(bar[i]))
+                    bar[i] = assign_variable(2*(bar[i]))
         return bar 
     
     @property
@@ -399,7 +399,7 @@ class TCCBraket:
         """TCC Circuit Bra parameters (values after minimization or variables name)."""
         if self.variables_bra is None: return []
         d = {v: k for k, v in self.variables_bra.items()}
-        return [d[assign_variable(-2*v)] if isinstance(v,FixedVariable) else d[v] for v in self.BK.params_bra]
+        return [d[assign_variable(2*v)] if isinstance(v,FixedVariable) else d[v] for v in self.BK.params_bra]
     
     @variables_bra.setter
     def variables_bra(self, variables_bra):
@@ -408,7 +408,7 @@ class TCCBraket:
         '''
         for idx,i in enumerate(variables_bra):
             if isinstance(assign_variable(i),FixedVariable):
-                variables_bra[idx]=assign_variable(-0.5*i)
+                variables_bra[idx]=assign_variable(0.5*i)
         self.BK.params_bra = variables_bra
 
     @property
@@ -418,14 +418,14 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #to tequila
                 if isinstance(bar[i],Number):
-                    bar[i] = assign_variable(-2*(bar[i]))
+                    bar[i] = assign_variable(2*(bar[i]))
         return bar
     
     @property
     def params_ket(self):
         """TCC Circuit Ket parameters (values after minimization or variables name)."""
         d = {v: k for k, v in self.variables_ket.items()}
-        return [d[assign_variable(-2*v)] if isinstance(v,FixedVariable) else d[v] for v in self.BK.params_ket]
+        return [d[assign_variable(2*v)] if isinstance(v,FixedVariable) else d[v] for v in self.BK.params_ket]
     
     @variables_ket.setter
     def variables_ket(self, variables_ket):
@@ -433,8 +433,9 @@ class TCCBraket:
         See TCC variables
         '''
         for idx,i in enumerate(variables_ket):
+            print(idx,i,type(i))
             if isinstance(assign_variable(i),FixedVariable):
-                variables_ket[idx]=assign_variable(-0.5*i)
+                variables_ket[idx]=assign_variable(0.5*i)
         self.BK.params_ket = variables_ket
     
     @property
@@ -444,7 +445,7 @@ class TCCBraket:
         if bar is not None:
             for i in bar.keys(): #Here to tequila 
                 if isinstance(bar[i],Number):
-                    bar[i] = assign_variable(-2*bar[i])
+                    bar[i] = assign_variable(2*bar[i])
         return bar 
     
     @property
@@ -460,7 +461,7 @@ class TCCBraket:
         """Tequila circuit variables."""
         for idx,i in enumerate(variables):
             if isinstance(assign_variable(i),FixedVariable):
-                variables[idx]=assign_variable(-0.5*i)
+                variables[idx]=assign_variable(0.5*i)
         self.BK.params = variables
 
     @property
