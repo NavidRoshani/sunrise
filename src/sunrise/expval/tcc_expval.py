@@ -51,7 +51,11 @@ class TCCBraket:
                 raise TequilaException('Two operators provided?')
             else:
                 operator = H
-
+        if 'mol' in kwargs:
+            if 'molecule' in kwargs and kwargs['molecule']:
+                raise TequilaException("Two molecules provided?")
+            kwargs['molecule'] = kwargs['mol']
+            kwargs.pop('mol')
 
         run_hf = (bra is None or bra.initial_state is None) and (ket is None or ket.initial_state is None)   
         if 'molecule' in kwargs and kwargs['molecule']:
@@ -608,15 +612,15 @@ class TCCBraket:
             c = 0
             for oper,val in operator.terms.items():
                 if len(oper) ==2:
-                    int1e[oper[0][0]//2,oper[1][0]//2] = val # expected RHF integrals 
+                    int1e[oper[0][0]//2,oper[1][0]//2] += 0.25*val # expected RHF integrals 
                 elif len(oper)==4:
-                    int2e[oper[0][0]//2,oper[3][0]//2,oper[1][0]//2,oper[2][0]//2] += val
+                    int2e[oper[0][0]//2,oper[3][0]//2,oper[1][0]//2,oper[2][0]//2] += 0.5*val
                 elif not len(oper):
                     c += val
                 else:
                     raise TequilaException(f'Operator {oper} not supported, only one and two-body operators allowed')
             bk.BK.e_core = c
-            bk.BK.int2e = 0.5*int2e
+            bk.BK.int2e = int2e
             bk.BK.int1e = int1e
             bk.BK.hamiltonian = None
             bk.BK.hamiltonian_lib = {}
