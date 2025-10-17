@@ -223,6 +223,7 @@ class FQEBraKet:
 
         self.ket_generator = create_fermionic_generators(ket_instructions, ket_angles)
         self.ket_generator_idx_map={}
+        self.bra_generator_idx_map={}
         for i, gen in enumerate(self.ket_generator.keys()):
             self.ket_generator_idx_map[gen] = self.ket_instructions[i]
 
@@ -251,6 +252,8 @@ class FQEBraKet:
             bra_angles = bra.variables
 
             self.bra_generator = create_fermionic_generators(bra_instructions, bra_angles)
+            for i, gen in enumerate(self.bra_generator.keys()):
+                self.bra_generator_idx_map[gen] = bra_instructions[i]
             init_bra = bra.initial_state
 
         self.bra_instructions = bra_instructions
@@ -433,9 +436,6 @@ class FQEBraKet:
                     c[variable] = -  np.pi
 
 
-
-
-                # print('-->',c)
                 index = braket.parameter_map_ket.index(variable)
                 aux_dict = {}
                 i = 0
@@ -450,13 +450,14 @@ class FQEBraKet:
                 braket.parameter_map_ket.insert(index+1, tq.Variable(name))
             else:
                 name = "p0sign_bra"
+
                 if p0sign:
                     braket.ket_generator[name] = p0
                 else:
                     braket.ket_generator[name] = -p0
 
                 braket.constant_dict_bra[variable] = - np.pi
-
+                print(braket.parameter_map_bra)
                 index = braket.parameter_map_bra.index(variable)
                 braket.parameter_map_bra.insert(index + 1, tq.Variable(name))
 
@@ -487,11 +488,15 @@ class FQEBraKet:
         # print("Variable",variable,'->',erw)
         g = 0
         for stuff in [erw]:
-            g += apply_phase(deepcopy(self), stuff, variable, ket=True, p0sign=True)
-            g += apply_phase(deepcopy(self), stuff, variable, ket=True, p0sign=False)
-            if self.bra_instructions is not None:
-                g += apply_phase(deepcopy(self), stuff, variable, ket=False, p0sign=True)
-                g += apply_phase(deepcopy(self), stuff, variable, ket=False, p0sign=False)
+            if variable in self.parameter_map_ket:
+                g += apply_phase(deepcopy(self), stuff, variable, ket=True, p0sign=True)
+                g += apply_phase(deepcopy(self), stuff, variable, ket=True, p0sign=False)
+        if self.bra_instructions is not None:
+            if variable in self.parameter_map_bra:
+                erw2 = self.bra_generator_idx_map[variable]
+                for stuff in [erw2]:
+                    g += apply_phase(deepcopy(self), stuff, variable, ket=False, p0sign=True)
+                    g += apply_phase(deepcopy(self), stuff, variable, ket=False, p0sign=False)
 
         return 0.5*g
 
