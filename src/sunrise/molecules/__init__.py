@@ -1,7 +1,7 @@
 from tequila import TequilaException
 from .fermionic_base import FerMolecule
 from .hybrid_base import HyMolecule
-from tequila import Molecule
+from tequila import Molecule as tqMolecule
 
 def Molecule(geometry: str = None,basis_set: str = None,nature: str = 'tequila',orbital_type: str = None,backend: str = None,guess_wfn=None,name: str = None,*args,**kwargs):
     """
@@ -31,9 +31,13 @@ def Molecule(geometry: str = None,basis_set: str = None,nature: str = 'tequila',
     """
 
     if nature.lower()=='tequila':
-        return Molecule(geometry=geometry,basis_set=basis_set,orbital_type=orbital_type,backend=backend,guess_wfn=guess_wfn,name=name,args=args,kwargs=kwargs)
+        return tqMolecule(geometry=geometry,basis_set=basis_set,orbital_type=orbital_type,backend=backend,guess_wfn=guess_wfn,name=name,args=args,kwargs=kwargs)
     elif nature.lower()=='hybrid':
-        return HyMolecule(geometry=geometry,basis_set=basis_set,orbital_type=orbital_type,backend=backend,guess_wfn=guess_wfn,name=name,args=args,kwargs=kwargs)
+        if 'select' in kwargs:
+            select = kwargs['select']
+            kwargs.pop('select')
+        else: select = {}
+        return HyMolecule(geometry=geometry,select=select,basis_set=basis_set,orbital_type=orbital_type,backend=backend,guess_wfn=guess_wfn,name=name,*args,**kwargs)
     elif nature.lower()=='fermionic':
         return FerMolecule(geometry=geometry,basis_set=basis_set,orbital_type=orbital_type,backend=backend,guess_wfn=guess_wfn,name=name,args=args,kwargs=kwargs)
     else:

@@ -115,18 +115,19 @@ class JordanWigner(EB):
         bos: CNOT only for the Bos orbitals
         '''
         if "all" in kwargs:
-            all = kwargs["all"]
+            alle = kwargs["all"]
             kwargs.pop("all")
-        else: all = False
+        else: alle = False
         if "bos" in kwargs:
             bos = kwargs["bos"]
             kwargs.pop("bos")
         else: bos = False
+
         if bos and self.condense:
             raise TequilaException("hcb_to_me called with bos with condensed encoding")
-        if bos and all:
+        if bos and alle:
             raise TequilaException("hcb_to_me called with all and bos both True")
-        if all and self.condense:
+        if alle and self.condense:
             raise TequilaException("hcb_to me asked for all orbitals in condensed encoding")
         U = QCircuit()
         pos = deepcopy(self.pos)
@@ -137,7 +138,7 @@ class JordanWigner(EB):
         for i in range(self.n_orbitals):
             if bos and self.select[i]=='B':
                 U += X(target=pos[2 * i + 1], control=pos[2 * i])
-            if not bos and (all or self.two_qubit or self.select[i]=='F'):
+            if not bos and (alle or self.two_qubit or self.select[i]=='F'):
                 U += X(target=pos[2*i+1], control=pos[2*i])
         return U
 

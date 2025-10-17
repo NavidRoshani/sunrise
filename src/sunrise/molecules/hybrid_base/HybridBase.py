@@ -86,8 +86,8 @@ class HybridBase(qc_base):
                                                                      reference_orbitals=reference_orbitals,
                                                                      orbitals=orbitals, frozen_orbitals=frozen_orbitals,
                                                                      orbital_type=orbital_type,
-                                                                     basis_name=self.parameters.basis_set, *args,
-                                                                     **kwargs)
+                                                                     basis_name=self.parameters.basis_set,condense=self.condense,
+                                                                     two_qubit=self.two_qubit,  *args,**kwargs)
 
         if orbital_type is not None and orbital_type.lower() == "native":
             self.integral_manager.transform_to_native_orbitals()
