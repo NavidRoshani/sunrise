@@ -70,8 +70,7 @@ def test_transition(backend):
     rov,iov = tq.BraKet(bra=U1,ket=U2,H=H)
     res1.angles.update(res2.angles)
     tq_ov = tq.simulate(rov,variables=res1.angles) + tq.simulate(iov,variables=res1.angles)
-    sunval = Braket(molecule=mol,bra=bra,ket=ket,backend=backend)
-    sn_ov = sunval(res1.angles)
+    sn_ov = sn.simulate(Braket(molecule=mol,bra=bra,ket=ket,backend=backend),variables=res1.angles)
     assert isclose(tq_ov,sn_ov,atol=1.e-3)
 
 @pytest.mark.parametrize("geom",["H 0.0 0.0 0.0\nH 0.0 0.0 1.6\nH 0.0 0.0 3.2\nH 0.0 0.0 4.8","H 0. 0. 0.\n Be 0. 0. 1.6\n H 0. 0. 3.2"])
