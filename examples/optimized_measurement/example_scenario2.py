@@ -37,7 +37,7 @@ for graph in graphs:
     rotators.append(UR)
 
 # Apply the measurement protocol
-result = sun.rotate_and_hcb(molecule=mol, circuit=U, variables=variables, rotators=rotators, target=full_energy, silent=False)
+result = sun.measurement.rotate_and_hcb(molecule=mol, circuit=U, variables=variables, rotators=rotators, target=full_energy, silent=False)
 print(result) # the list of HCB molecules to measure and the residual element discarded
 
 # Compute the energy

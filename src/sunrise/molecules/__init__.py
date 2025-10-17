@@ -2,8 +2,9 @@ from tequila import TequilaException
 from .fermionic_base import FerMolecule
 from .hybrid_base import HyMolecule
 from tequila import Molecule as tqMolecule
+from tequila.quantumchemistry.qc_base import QuantumChemistryBase
 
-def Molecule(geometry: str = None,basis_set: str = None,nature: str = 'tequila',orbital_type: str = None,backend: str = None,guess_wfn=None,name: str = None,*args,**kwargs):
+def Molecule(geometry: str = None,basis_set: str = None,nature: str = 'tequila',orbital_type: str = None,backend: str = None,guess_wfn=None,name: str = None,*args,**kwargs)->QuantumChemistryBase:
     """
 
     Parameters

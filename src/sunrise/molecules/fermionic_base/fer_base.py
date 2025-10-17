@@ -22,6 +22,7 @@ import numpy
 from itertools import product
 from sunrise.fermionic_operations.givens_rotations import get_givens_circuit as __get_givens_circuit
 from sunrise.fermionic_operations.givens_rotations import n_rotation as __n_rotation
+from sunrise.hybridization.hybridization import Graph
 
 from tequila.quantumchemistry.qc_base import QuantumChemistryBase
 try:
@@ -1471,4 +1472,26 @@ class FermionicBase(QuantumChemistryBase):
         result += "\nmore information with: self.print_basis_info()\n"
 
         return result
+    
+    def get_xyz(self)->str:
+        geom = self.parameters.get_geometry()
+        f = ''
+        f += f'{len(geom)}\n'
+        f += f'{self.parameters.name}\n'
+        for at in geom:
+            f += f'{at[0]} {at[1][0]} {at[1][1]} {at[1][2]}\n'
+        return f
+
+    def graph(self):
+        return Graph.parse_xyz(self.get_xyz())
+    
+    def get_spa_edges(self,collapse:bool=True,strip_orbitals:bool=None):
+        if strip_orbitals  is None:
+            strip_orbitals = not self.integral_manager.active_space_is_trivial()
+        return self.graph().get_spa_edges(collapse=collapse,strip_orbitals=strip_orbitals)
+    
+    def get_spa_guess(self,strip_orbitals:bool=None):
+        if strip_orbitals  is None:
+            strip_orbitals = not self.integral_manager.active_space_is_trivial()
+        return self.graph().get_orbital_coefficient_matrix(strip_orbitals=strip_orbitals)
 
