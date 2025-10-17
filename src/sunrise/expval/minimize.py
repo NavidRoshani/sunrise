@@ -28,7 +28,7 @@ def minimize(objective,method: str = "bfgs",variables: list = None,initial_value
         return tminimize(objective=objective,method=method,variables=variables,initial_values=initial_values,maxiter=maxiter,silent=silent,args=args,kwargs=kwargs)
 
 #FIXME: Placeholder functions while not commited to tequila
-def grad(objective: Union[Objective, QTensor], variable: Variable = None, no_compile=True, *args, **kwargs):
+def grad(objective: Union[Objective, QTensor], variable: Variable = None, no_compile=False, *args, **kwargs):
     """
     wrapper function for getting the gradients of Objectives,ExpectationValues, Unitaries (including single gates), and Transforms.
     :param obj (QCircuit,ParametrizedGateImpl,Objective,ExpectationValue,Transform,Variable): structure to be differentiated
@@ -67,6 +67,7 @@ def grad(objective: Union[Objective, QTensor], variable: Variable = None, no_com
     our = False
     if any([type(arg).__name__ in  ['TCCBraket','FQEBraKet'] for arg in objective.args]):
         our = True
+        no_compile = True
     elif not our and objective.is_translated():
         raise TequilaException(
             "\n\ngradient of:{}\ncan not form gradient that was already compiled to a quantum backend\ntq.grad neds to be applied to the abstract - non compiled objective\nE.g. for the (compiled) objective E1 \n\tE1 = tq.compile(E0)\ninstead of doing\n\tdE = tq.grad(E1)\ndo\n\tdE = tq.grad(E0)\nand compile dE afterwards (if wanted) with\n\tdE = tq.compile(dE)\n".format(
@@ -148,7 +149,7 @@ def __grad_objective(objective: Objective, variable: Variable):
 def __grad_inner(arg, variable):
     """
     a modified loop over __grad_objective, which gets derivatives
-     all the way down to variables, return 1 or 0 when a variable is (isnt) identical to var.
+    all the way down to variables, return 1 or 0 when a variable is (isnt) identical to var.
     :param arg: a transform or variable object, to be differentiated
     :param variable: the Variable with respect to which par should be differentiated.
     :ivar var: the string representation of variable

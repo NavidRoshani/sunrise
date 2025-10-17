@@ -82,7 +82,7 @@ class TCCBraket:
             aslst = [i.idx_total for i in integral.active_orbitals]
             active_space = (molecule.n_electrons,molecule.n_orbitals)
             molecule = from_tequila(molecule)
-            self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, aslst=aslst,active_space=active_space,run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",mo_coeff=mo_coeff,**backend_kwargs)
+            self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, aslst=aslst,active_space=active_space,run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",engine=engine,mo_coeff=mo_coeff,**backend_kwargs)
         else:
             int1e = None
             int2e = None
@@ -154,10 +154,9 @@ class TCCBraket:
             if all([i is not None for i in[int2e,int1e,mo_coeff]]):
                 if isinstance(int2e,NBodyTensor):
                     int2e = int2e.reorder('chem').elems
-                self.BK:EXPVAL = EXPVAL.from_integral(int1e=int1e, int2e=int2e,n_elec= n_elec, e_core=e_core,ovlp=ovlp,mo_coeff=mo_coeff,init_method="zeros",run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,**backend_kwargs)
+                self.BK:EXPVAL = EXPVAL.from_integral(int1e=int1e, int2e=int2e,n_elec= n_elec, e_core=e_core,ovlp=ovlp,mo_coeff=mo_coeff,init_method="zeros",engine=engine,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,**backend_kwargs)
             else:
                 raise TequilaException('Not enough molecular data provided')
-
         if ket is not None:
             self.ket = ket
         if bra is not None:
@@ -238,9 +237,9 @@ class TCCBraket:
             for idx in exct:
                 p0.append((idx[0],idx[0]))
                 p0.append((idx[1],idx[1]))
+            braket._name = 'Gradient'
             if ket:
                 if braket.is_diagonal: 
-                    braket._name = 'Gradient'
                     k = deepcopy(braket.ket)
                     v = deepcopy(braket.params_ket)
                     braket.bra = k
@@ -253,11 +252,11 @@ class TCCBraket:
                         v.insert(idx,assign_variable(s[not p0sign]*pi))
                     braket.ket = k
                     braket.variables_ket = v
-
                 else:
-                    braket._name = 'Gradient'
                     k = deepcopy(braket.ket)
                     v = deepcopy(braket.params_ket)
+                    if exct not in k:
+                        return 0.
                     idx = k.index(exct)
                     ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
                     v[idx] +=  s[ket]*pi/2
@@ -268,7 +267,6 @@ class TCCBraket:
                     braket.variables_ket = v
             else: 
                 if braket.is_diagonal: 
-                    braket._name = 'Gradient'
                     k = deepcopy(braket.ket)
                     v = deepcopy(braket.params_ket)
                     idx = k.index(exct)
@@ -280,9 +278,10 @@ class TCCBraket:
                     braket.bra = k
                     braket.variables_bra = v
                 else:
-                    braket._name = 'Gradient'
                     k = deepcopy(braket.bra)
                     v = deepcopy(braket.params_bra)
+                    if exct not in k:
+                        return 0.
                     idx = k.index(exct)
                     ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
                     v[idx] +=  s[ket]*pi/2
@@ -308,13 +307,18 @@ class TCCBraket:
             variable = assign_variable(variable)
         if variable not in self.extract_variables():
             return 0.
+        if 'civector' in self.BK.engine:
+            try:
+                _,grad = self.BK.expval_and_grad(angles=variable)
+                return grad
+            except: raise TequilaException("For civector engine it doesn't work out P0 approach for gradient, try better the TCCBraket.minimize() or change to other engine")
         ex_ops = self.param_to_ex_ops[variable]
         g = 0
         for exct in ex_ops:
-            g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=True)
-            # g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=False)
+            g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=True) 
+            # g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=False) #wfn always real for tcc 
             g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=False,p0sign=True)
-            # g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=False,p0sign=False)
+            # g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=False,p0sign=False) #wfn always real for tcc
         return -0.5*g
 
     @property
@@ -433,7 +437,6 @@ class TCCBraket:
         See TCC variables
         '''
         for idx,i in enumerate(variables_ket):
-            print(idx,i,type(i))
             if isinstance(assign_variable(i),FixedVariable):
                 variables_ket[idx]=assign_variable(0.5*i)
         self.BK.params_ket = variables_ket
@@ -525,12 +528,12 @@ class TCCBraket:
     def param_to_ex_ops_bra(self):
         if self.params_bra is None: return {}
         d = defaultdict(list)
-        for i, j in enumerate(self.params_ket):
+        for i, j in enumerate(self.params_bra):
             if hasattr(j,'extract_variables'):
                 for v in j.extract_variables():
-                    d[v].append(self.ket[i])
+                    d[v].append(self.bra[i])
             else:
-                d[j].append(self.ket[i])
+                d[j].append(self.bra[i])
         return d
     
     

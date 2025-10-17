@@ -7,7 +7,7 @@ from tequila.quantumchemistry.qc_base import QuantumChemistryBase
 from tequila.quantumchemistry.chemistry_tools import prepare_product_state
 from tequila.utils.exceptions import TequilaException, TequilaWarning
 from tequila import assign_variable,QCircuit,QubitWaveFunction
-from typing import List,Union,Iterable,Optional
+from typing import List,Union,Iterable,Optional,Callable
 import copy
 from collections import defaultdict
 from numpy import ndarray,where,isclose,pi,array
@@ -571,35 +571,45 @@ class FCircuit:
     def add_controls(self, control, inpl: Optional[bool] = False) -> Optional[FCircuit]: #TODO
         pass 
       
-    def to_qcircuit(self,molecule:QuantumChemistryBase) -> QCircuit: #TODO
+    def to_qcircuit(self,molecule:QuantumChemistryBase=None,transformation:Callable=None) -> QCircuit: 
+        '''
+        Transform from FCircuit to Qcircuit
+        :param molecule Any kind of Tequila/Sunrise Molecule with molecule.make_excitation_gate function
+        :param transformation Callable function such as transformation(FCircuit) -> QCircuit 
+        '''
         U = deepcopy(self)
-        res = QCircuit()
-        if U.initial_state is None:
-            if molecule.transformation.up_then_down:
-                U = U.to_upthendown(molecule.n_orbitals)
+        if molecule is not None:
+            res = QCircuit()
+            if U.initial_state is None:
+                if molecule.transformation.up_then_down:
+                    U = U.to_upthendown(molecule.n_orbitals)
+                else:
+                    U = U.to_udud(molecule.n_orbitals)
             else:
+                molecule.transformation.upthendown = True
                 U = U.to_udud(molecule.n_orbitals)
+                idx = where(array(self._initial_state.to_array())>1.e-6)[0]
+                if not len(idx):
+                    pass
+                elif len(idx)>1:
+                    warnings.warn("Don't now how to prepare the circuit initial state, skyped for safety",TequilaWarning)
+                else:
+                    res += prepare_product_state(state=BitString.from_int(integer=idx[0],nbits=2*molecule.n_orbitals))
+            for gate in U.gates:
+                if gate.name == 'UR':
+                    res += molecule.make_excitation_gate(indices=gate.indices[0],angle=gate.variables)#TODO: Control
+                    res += molecule.make_excitation_gate(indices=gate.indices[1],angle=gate.variables)#TODO: Control
+                elif gate.name in ['UC', 'FermionicExcitation', 'GenericFermionic']:
+                    res += molecule.make_excitation_gate(indices=gate.indices[0],angle=gate.variables)#TODO: Control
+                elif gate.name == 'Ph':
+                    res +=  Phase(target=[0][0],angle=gate.variables)  #TODO: Control
+                else:
+                    raise TequilaException(f'Gate {gate} not idenified')
+            return res
+        elif transformation is not None:
+            return transformation(U)
         else:
-            molecule.transformation.upthendown = True
-            U = U.to_udud(molecule.n_orbitals)
-            idx = where(array(self._initial_state.to_array())>1.e-6)[0]
-            if not len(idx):
-                pass
-            elif len(idx)>1:
-                warnings.warn("Don't now how to prepare the circuit initial state, skyped for safety",TequilaWarning)
-            else:
-                res += prepare_product_state(state=BitString.from_int(integer=idx[0],nbits=2*molecule.n_orbitals))
-        for gate in U.gates:
-            if gate.name == 'UR':
-                res += molecule.make_excitation_gate(indices=gate.indices[0],angle=gate.variables)#TODO: Control
-                res += molecule.make_excitation_gate(indices=gate.indices[1],angle=gate.variables)#TODO: Control
-            elif gate.name in ['UC', 'FermionicExcitation', 'GenericFermionic']:
-                res += molecule.make_excitation_gate(indices=gate.indices[0],angle=gate.variables)#TODO: Control
-            elif gate.name == 'Ph':
-                res +=  Phase(target=[0][0],angle=gate.variables)  #TODO: Control
-            else:
-                raise TequilaException(f'Gate {gate} not idenified')
-        return res
+            raise TequilaException("No Possible to transform from FCircuit to QCircuit without further information")
     
     def _verify_state(self):
         state = self._initial_state.to_array()

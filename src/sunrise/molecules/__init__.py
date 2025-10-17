@@ -30,15 +30,15 @@ def Molecule(geometry: str = None,basis_set: str = None,nature: str = 'tequila',
         Molecule object
     """
 
-    if nature.lower()=='tequila':
+    if nature.lower()=='tequila' or nature.lower()=='t':
         return tqMolecule(geometry=geometry,basis_set=basis_set,orbital_type=orbital_type,backend=backend,guess_wfn=guess_wfn,name=name,args=args,kwargs=kwargs)
-    elif nature.lower()=='hybrid':
+    elif nature.lower()=='hybrid' or nature.lower()=='h':
         if 'select' in kwargs:
             select = kwargs['select']
             kwargs.pop('select')
         else: select = {}
         return HyMolecule(geometry=geometry,select=select,basis_set=basis_set,orbital_type=orbital_type,backend=backend,guess_wfn=guess_wfn,name=name,*args,**kwargs)
-    elif nature.lower()=='fermionic':
+    elif nature.lower()=='fermionic' or nature.lower()=='f':
         return FerMolecule(geometry=geometry,basis_set=basis_set,orbital_type=orbital_type,backend=backend,guess_wfn=guess_wfn,name=name,args=args,kwargs=kwargs)
     else:
         raise TequilaException(f"Molecule Nature not identified: {nature}. Only tequila, hybrid and fermionic allowed.")
