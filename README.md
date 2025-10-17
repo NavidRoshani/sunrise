@@ -1,9 +1,9 @@
 Sunrise is a package for all-around fermionic state preparation and simulation on quantum computers. It holds no qubits, but only physical information, making it efficient to store and manipulate.
 
-[TEQUILA](https://github.com/tequilahub) chemistry extension package.
+[Tequila](https://github.com/tequilahub) chemistry extension package.
 
 # Installation
-Will work on OSX and Linux (no PySCF on Windows)
+It will work on OSX and Linux (no PySCF on Windows)
 
 Install this program with all the dependencies like this:
 
@@ -30,10 +30,10 @@ The package's specified installation command is erroneous and deploys the prior 
 ```bash
 pip install git+https://github.com/tensorcircuit/TenCirChem-NG.git
 ```
-For a regular usage it works. However, if you are going to use a more complex initial states than just HF, we recommend fixing [this bug](https://github.com/tensorcircuit/TenCirChem-NG/pull/4) until implemented on the code. 
+It works for a regular usage. However, if you are going to use a more complex initial states than just HF, we recommend fixing [this bug](https://github.com/tensorcircuit/TenCirChem-NG/pull/4) until implemented on the code. 
 
 # Fermionic Circuit
-In order to stay in an abstract fermionic layer, the FCircuit has been developed. This circuit consist on two main part, the initial_state and the circuit itself. The initial_state relies on a tequila QubitWaveFunction, which states are checked to be particle conserving. It can be set through anyway of creating a tq.QubitWaveFunction, either with a F/QCircuit with already mapped variables, or the options available in QubitWaveFunction.convert_from(). **It is important to take into account that both fqe and tcc work with initial_states in upthendown, therefore we are keeping here that as mandatory**. In order to create the circuit itself, some gates have been already defined at sunrise.gates. A example could be:
+The FCircuit has been developed in order to preserve abstract fermionic layers. This circuit consists of two main parts, the `initial_state` and the circuit itself. The `initial_state` relies on a tequila `QubitWaveFunction`, whose states are checked to be particle conserving. It can be set through anyway of creating a `tq.QubitWaveFunction`, either with a `FCircuit` or `QCircuit` with already mapped variables, or the options available in `QubitWaveFunction.convert_from()`. **It is important to take into account that both fqe and tcc work with initial_states in upthendown, therefore we are keeping here that as mandatory**. In order to create the circuit itself, some gates have been already defined at sunrise.gates. A example could be:
 ```python
 from sunrise import gates
 U = sn.FCircuit()
@@ -50,7 +50,7 @@ mol = sun.Molecule(geometry=geom,basis_set='sto-3g',nature='f')
 U = mol.make_ansatz('UpCCSD')
 print(U)
 ```
-Finally, they can be employed in a similar way to tequila QCircuits or converted to them:
+Finally, they can be employed in a similar way to tequila `QCircuit` or converted to them:
 ```python
 U = ...
 #The expectation value object is explained bellow
