@@ -5,12 +5,11 @@ import numpy as np
 import openfermion as of
 import scipy
 
-HAS_PYSCF = "pyscf" in tq.quantumchemistry.INSTALLED_QCHEMISTRY_BACKENDS
-HAS_PSI4 = "psi4" in tq.quantumchemistry.INSTALLED_QCHEMISTRY_BACKENDS
-
-@pytest.mark.skipif(condition=not HAS_PSI4 and not HAS_PYSCF, reason="psi4/pyscf not found")
-@pytest.mark.parametrize("backend", ["pyscf", "psi4"])
+# @pytest.mark.skipif(condition=not HAS_PSI4 and not HAS_PYSCF, reason="psi4/pyscf not found")
+@pytest.mark.parametrize("backend",tq.chemistry.INSTALLED_QCHEMISTRY_BACKENDS)
 def test_hcb_measurement_linearH4_scenario2(backend):
+    if backend == 'base':
+        pytest.skip("Base")
     # Create the molecule
     mol = tq.Molecule(geometry="h 0.0 0.0 0.0\nh 0.0 0.0 1.5\nh 0.0 0.0 3.0\nh 0.0 0.0 4.5", basis_set="sto-3g", backend=backend).use_native_orbitals()
     H = mol.make_hamiltonian()
@@ -65,9 +64,10 @@ def test_hcb_measurement_linearH4_scenario2(backend):
         test_energy += tq.simulate(E, variables=variables)
     assert np.isclose(test_energy, energy, 10**-3)
 
-@pytest.mark.skipif(condition=not HAS_PSI4 and not HAS_PYSCF, reason="psi4/pyscf not found")
-@pytest.mark.parametrize("backend", ["pyscf", "psi4"])
+@pytest.mark.parametrize("backend",tq.chemistry.INSTALLED_QCHEMISTRY_BACKENDS)
 def test_hcb_measurement_linearH4_scenario1(backend):
+    if backend == 'base':
+        pytest.skip("Base")
     # Create the molecule
     mol = tq.Molecule(geometry="h 0.0 0.0 0.0\nh 0.0 0.0 1.5\nh 0.0 0.0 3.0\nh 0.0 0.0 4.5", basis_set="sto-3g", backend=backend).use_native_orbitals()
     fci = mol.compute_energy("fci")
