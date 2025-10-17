@@ -6,7 +6,7 @@ from tequila.quantumchemistry.chemistry_tools import FermionicGateImpl
 from tequila.quantumchemistry.qc_base import QuantumChemistryBase
 from tequila.quantumchemistry.chemistry_tools import prepare_product_state
 from tequila.utils.exceptions import TequilaException, TequilaWarning
-from tequila import assign_variable,QCircuit,QubitWaveFunction,simulate
+from tequila import assign_variable,QCircuit,QubitWaveFunction
 from typing import List,Union,Iterable,Optional
 import copy
 from collections import defaultdict
@@ -102,7 +102,7 @@ class FCircuit:
         if initial_state is None or isinstance(initial_state,QubitWaveFunction):
             pass
         elif isinstance(initial_state,QCircuit):
-            initial_state = simulate(initial_state,variables={})
+            initial_state = sunrise.simulate(initial_state,variables={})
         elif isinstance(initial_state,str):
             initial_state = QubitWaveFunction.from_string(initial_state)
         elif isinstance(initial_state,(list,ndarray)):

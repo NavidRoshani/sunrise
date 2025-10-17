@@ -94,42 +94,21 @@ def test_maped_variables(geom,backend):
     assert isclose(tqE,sunE)
 
 
-#todo remove tests below
-@pytest.mark.parametrize("geom", ["H 0.0 0.0 0.0\nH 0.0 0.0 1.6\nH 0.0 0.0 3.2\nH 0.0 0.0 4.8"])
-def test_overlap_minimzation_fqe(geom):
-    mol = tq.Molecule(geometry=geom, basis_set='sto-3g',transformation='reordered-jordan-wigner').use_native_orbitals()
-    H = mol.make_hamiltonian()
-    U1 = mol.make_ansatz("SPA", edges=[(0, 1), (2, 3)])
-    U2 = mol.make_ansatz("SPA", edges=[(0, 2), (1, 3)])
-    bra = sn.FCircuit.from_edges([(0, 1), (2, 3)], n_orb=mol.n_orbitals)
-    ket = sn.FCircuit.from_edges([(0, 2), (1, 3)], n_orb=mol.n_orbitals)
 
-    tqbraket = tq.BraKet(bra=U1, ket=U2, H=H)
-    both = tq.BraKet(bra=U1, ket=U2, H=H)
+#TODO: recursion limit problem on tequila, return when fixed
+# @pytest.mark.parametrize("geom", ["H 0.0 0.0 0.0\nH 0.0 0.0 1.6\nH 0.0 0.0 3.2\nH 0.0 0.0 4.8"])
+# @pytest.mark.parametrize('backend',INSTALLED_FERMIONIC_BACKENDS)
+# def test_overlap_minimzation(geom,backend):
+#     if backend == "tequila":
+#         pytest.skip("Skipping tequila")
+#     mol = tq.Molecule(geometry=geom, basis_set='sto-3g',transformation='reordered-jordan-wigner').use_native_orbitals()
+#     H = mol.make_hamiltonian()
+#     U1 = mol.make_ansatz("SPA", edges=[(0, 1), (2, 3)])
+#     U2 = mol.make_ansatz("SPA", edges=[(0, 2), (1, 3)])
+#     bra = sn.FCircuit.from_edges([(0, 1), (2, 3)], n_orb=mol.n_orbitals)
+#     ket = sn.FCircuit.from_edges([(0, 2), (1, 3)], n_orb=mol.n_orbitals)
 
-    tqE = tq.minimize(tqbraket[0], silent=False)
-    # tqov = tq.minimize(rov) + tq.minimize(iov)
-
-    fqebra = sunrise.expval.FQEBraKet(molecule=mol, ket=ket, bra=bra)
-    variables = bra.variables
-    variables += ket.variables
-    variables = list(dict.fromkeys(variables))
-    init_vars = {vs: 0 for vs in variables}
-    x0 = list(init_vars.values())
-    r = minimize(
-        fun=fqebra,
-        x0=x0,
-        jac="2-point",
-        method="bfgs",
-        options={"finite_diff_rel_step": 1.e-6, "disp": True},
-        tol=1.e-10
-    )
-    sn_angles = {k: v for k, v in zip(variables, r.x)}
-    # sunwfn = tq.simulate(U, sn_angles)
-    tqov = tq.simulate(both[0], silent=True, variables=sn_angles)
-    print(tqov, r.fun.real)
-    assert isclose(tqov, r.fun.real, atol=1.e-3)
-
-    assert isclose(tqE.energy, r.fun.real, atol=1.e-3)
-    # assert isclose(abs(tqwfn.inner(sunwfn)), 1, 1.e-3)
+#     tqS = tq.minimize(tq.BraKet(bra=U1, ket=U2, H=H)[0], silent=True)
+#     snS = sn.minimize(sn.Braket(molecule=mol, ket=ket, bra=bra,backend=backend),silent=True)
+#     assert isclose(tqS.energy, snS.energy, atol=1.e-3)
 
