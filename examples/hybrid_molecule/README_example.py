@@ -2,10 +2,9 @@ import tequila as tq
 import sunrise as sun
 ### INITIALIZE YOUR MOLECULE
 
-molecule  = sun.Molecule(geometry="H 0. 0. 0. \n Li 0. 0. 1.5",basis_set="sto-3g",select="BBFBF")
+molecule  = sun.Molecule(geometry="H 0. 0. 0. \n Li 0. 0. 1.5",basis_set="sto-3g",select="BBFBF",nature='h')
 print(molecule.select)
-
-molecule  = sun.Molecule(geometry="H 0. 0. 0. \n Li 0. 0. 1.5",basis_set="sto-3g",select={2:"F",4:"F"})
+molecule  = sun.Molecule(geometry="H 0. 0. 0. \n Li 0. 0. 1.5",basis_set="sto-3g",select={2:"F",4:"F"},nature='h')
 print(molecule.select)
 ### CREATE YOUR CIRCUITS
 Uspa = molecule.make_ansatz("SPA",edges=[(0,1)])

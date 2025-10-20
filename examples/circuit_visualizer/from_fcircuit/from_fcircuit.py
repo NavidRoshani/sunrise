@@ -7,6 +7,6 @@ U += sun.gates.UR(0,1,variables="a") + sun.gates.UR(2,3,variables="a") + sun.gat
 U += sun.gates.UC(1,2,variables="a")
 U += sun.gates.FermionicExcitation(indices=[(0,2),(3,5)],variables="a",reordered=False)
 
-U.export_to("from_circuit_example.qpic") # Create qpic file
-U.export_to("from_circuit_example.pdf") # Create pdf file
-# visual_circuit.export_to("from_circuit_example.png") # Create png file
+U.export_to("from_fcircuit_example.qpic") # Create qpic file
+U.export_to("from_fcircuit_example.pdf") # Create pdf file
+# visual_circuit.export_to("from_fcircuit_example.png") # Create png file

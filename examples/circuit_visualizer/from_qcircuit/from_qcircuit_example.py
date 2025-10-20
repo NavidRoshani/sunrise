@@ -15,6 +15,6 @@ U += mol.UC(1,2,2)
 
 visual_circuit = sun.graphical.GraphicalCircuit.from_circuit(U=U, n_qubits_is_double=True)
 
-visual_circuit.export_qpic("from_circuit_example") # Create qpic file
-visual_circuit.export_to("from_circuit_example.pdf") # Create pdf file
-# visual_circuit.export_to("from_circuit_example.png") # Create png file
+visual_circuit.export_qpic("from_qcircuit_example") # Create qpic file
+visual_circuit.export_to("from_qcircuit_example.pdf") # Create pdf file
+# visual_circuit.export_to("from_qcircuit_example.png") # Create png file
