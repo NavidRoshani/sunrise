@@ -4,7 +4,6 @@ from tequila.circuit.gates import QubitExcitationImpl,X,Phase
 from tequila import Variable,BitString
 from tequila.quantumchemistry.chemistry_tools import FermionicGateImpl
 from tequila.quantumchemistry.qc_base import QuantumChemistryBase
-from tequila.quantumchemistry.chemistry_tools import prepare_product_state
 from tequila.utils.exceptions import TequilaException, TequilaWarning
 from tequila import assign_variable,QCircuit,QubitWaveFunction
 from typing import List,Union,Iterable,Optional,Callable
@@ -15,6 +14,7 @@ import warnings
 import numbers
 from copy import deepcopy
 import sunrise
+from tequila.circuit.gates import X
 
 class FCircuit:
     """
@@ -594,7 +594,7 @@ class FCircuit:
                 elif len(idx)>1:
                     warnings.warn("Don't now how to prepare the circuit initial state, skyped for safety",TequilaWarning)
                 else:
-                    res += prepare_product_state(state=BitString.from_int(integer=idx[0],nbits=2*molecule.n_orbitals))
+                    res += X(target=[i for i in range(len(bin(idx[0])[2:])) if bin(idx[0])[2:][i]=='1'])
             for gate in U.gates:
                 if gate.name == 'UR':
                     res += molecule.make_excitation_gate(indices=gate.indices[0],angle=gate.variables)#TODO: Control
