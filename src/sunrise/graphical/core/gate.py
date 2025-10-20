@@ -85,7 +85,6 @@ class Gate(abc.ABC):
 
         for wire in range(0, max(wires) + 1):
             result += f"a{wire} /\n"
-
         # add gates
         state = CircuitState(max(wires))
         result += self.render(state, style) + "\n"
@@ -106,7 +105,7 @@ class Gate(abc.ABC):
 
         filename_tmp = filename.split(".")
         if len(filename_tmp) == 1:
-            ftype = ".pdf"
+            ftype = "pdf"
             fname = filename
         else:
             ftype = filename_tmp[-1]
@@ -114,8 +113,12 @@ class Gate(abc.ABC):
         if ftype == 'qpic':
             self.export_qpic(fname,**kwargs)
         elif ftype == 'pdf':
+            if not path.exists(fname+'.qpic'):
+                self.export_qpic(fname,**kwargs)
             graphical.qpic_to_pdf(fname,**kwargs)
         elif ftype == 'png':
+            if not path.exists(fname+'.qpic'):
+                self.export_qpic(fname,**kwargs)
             graphical.qpic_to_png(fname,**kwargs)
         else:
             raise tq.TequilaException(f'Extension {ftype} not supported directly. Try exporting to qpic and compiling to {ftype} yourself')

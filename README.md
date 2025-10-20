@@ -1,11 +1,20 @@
-Sunrise is a package for all-around fermionic state preparation and simulation on quantum computers. It holds no qubits, but only physical information, making it efficient to store and manipulate.
+   mmmm                                     ##                        
+ m#""""#                                    ""                        
+ ##m       ##    ##  ##m####m   ##m####   ####     mm#####m   m####m  
+  "####m   ##    ##  ##"   ##   ##"         ##     ##mmmm "  ##mmmm## 
+      "##  ##    ##  ##    ##   ##          ##      """"##m  ##"""""" 
+ #mmmmm#"  ##mmm###  ##    ##   ##       mmm##mmm  #mmmmm##  "##mmmm# 
+  """""     """" ""  ""    ""   ""       """"""""   """"""     """""                                       
 
-[TEQUILA](https://github.com/tequilahub) chemistry extension package.
+Sunrise is a package for all-around fermionic state preparation and simulation on quantum computers.
+It holds no qubits, but only physical information, making it efficient for storage and manipulation.
+
+[Tequila](https://github.com/tequilahub) chemistry extension package.
+
 
 # Installation
-Will work on OSX and Linux (no PySCF on Windows)
-
-Install this program with all the dependencies like this:
+Sunrise is compatible with macOS and Linux operating systems. PySCF is not supported on Windows.
+Please, install the package along with all required dependencies:
 
 ```bash
 conda create -n myenv python=3.10
@@ -14,35 +23,40 @@ conda activate myenv
 cd project-sunrise
 pip install -e .
 ```
+
 ## Fermionic Backends
 To see the supported fermionic backends:
 ```python
-import sunrise as sun
+import sunrise as sun  # First time might take some seconds
 sun.show_supported_modules()
 ```
 ### [FQE](https://github.com/quantumlib/OpenFermion-FQE)
-Install with
+Install with:
 ```bash
 pip install fqe
 ```
 ### [TenCirChem - Next Generation](https://github.com/tensorcircuit/tensorcircuit-ng) (TCC-NG)
-The package's specified installation command is erroneous and deploys the prior version (plain TCC). However, the implementation on sunrise has been built over this ng package, waiting to be fixed. In the mean time, we recomend to install it as:
+The package's specified installation command is erroneous and deploys the prior version (plain TCC). However, the implementation on sunrise has been built over the existing ng package, waiting to be fixed. In the mean time, we recomend to install it as:
 ```bash
 pip install git+https://github.com/tensorcircuit/TenCirChem-NG.git
 ```
-For a regular usage it works. However, if you are going to use a more complex initial states than just HF, we recommend fixing [this bug](https://github.com/tensorcircuit/TenCirChem-NG/pull/4) until implemented on the code. 
+It works for a regular usage. However, if you are going to use a more complex initial states than just HF, we recommend fixing [this bug](https://github.com/tensorcircuit/TenCirChem-NG/pull/4) until implemented on the code. 
+
 
 # Fermionic Circuit
-In order to stay in an abstract fermionic layer, the FCircuit has been developed. This circuit consist on two main part, the initial_state and the circuit itself. The initial_state relies on a tequila QubitWaveFunction, which states are checked to be particle conserving. It can be set through anyway of creating a tq.QubitWaveFunction, either with a F/QCircuit with already mapped variables, or the options available in QubitWaveFunction.convert_from(). **It is important to take into account that both fqe and tcc work with initial_states in upthendown, therefore we are keeping here that as mandatory**. In order to create the circuit itself, some gates have been already defined at sunrise.gates. A example could be:
+The FCircuit has been developed in order to preserve abstract fermionic layers. This circuit consists of two main parts, the `initial_state` and the circuit itself. The `initial_state` relies on a tequila `QubitWaveFunction`, whose states are checked to be particle conserving. It can be set through any way of creating a `tq.QubitWaveFunction`, either with a `FCircuit` or `QCircuit` with already mapped variables, or the options available in `QubitWaveFunction.convert_from()`. **It is important to take into account that both fqe and tcc work with initial_states in upthendown, therefore we are keeping here that as mandatory**. In order to create the circuit itself, some gates have been already defined at sunrise.gates. 
+
+A representative example could be:
 ```python
 from sunrise import gates
-U = sn.FCircuit()
+U = sun.FCircuit()
 U.initial_state = '1*|11001100>'
 U += gates.UR(0,1,"a") + gates.UR(2,3,"b") 
 U += gates.UC(1,2,'c') + gates.UC(0,3,'d')
 U += gates.FermionicExcitation([(0,4),(1,5)],'e')
 print(U)
 ```
+
 They can also be created with the Fermionic Molecule:
 ```python
 geom = "H 0.0 0.0 0.0\nH 0.0 0.0 1.6\nH 0.0 0.0 3.2\nH 0.0 0.0 4.8"
@@ -50,7 +64,8 @@ mol = sun.Molecule(geometry=geom,basis_set='sto-3g',nature='f')
 U = mol.make_ansatz('UpCCSD')
 print(U)
 ```
-Finally, they can be employed in a similar way to tequila QCircuits or converted to them:
+
+Finally, they can be employed in a similar way to tequila `QCircuit` or converted to them:
 ```python
 U = ...
 #The expectation value object is explained bellow
@@ -58,18 +73,22 @@ E = sun.Braket(U=U,backend='tcc',mol=mol)
 res = sun.minimize(E,silent=True)
 print(sun.simulate(U,variables=res.variables))
 print('Energy ',res.energy)
-print('Energy ',res.variables)
+print('Variables ',res.variables)
 opt = sun.optimize_orbitals(molecule=mol,circuit=U,backend='fqe',silent=True)
 ```
-or compiled to qubit and being employed as in regular tequila
+
+or compiled to qubit and being employed as in regular tequila:
 ```python
+mol = sun.Molecule(geometry=geom,basis_set='sto-3g',nature='tequila')
 print(U)
 U = U.to_qcircuit(mol)
 print(U)
 ```
-# Fermionic Expectation Value
 
+
+# Fermionic Expectation Value
 Fermionic Expectation Value, interface with FQE, TCC and TQ. Created in a similar form to tequila BraKet. 
+
 ```python
 #If not especified, the default operator is the molecular Hamiltonian
 E = sun.Braket(molecule=mol,U=U,backend='tcc')
@@ -81,20 +100,20 @@ r = sun.Braket(bra=U1,ket=U2,op)
 res = sun.simulate/minimize/...
 ```
 
-# [Hybrid Molecule](https://doi.org/10.1088/2058-9565/adbdee)
-Create your Hybrid Molecule. \
-Example :
 
+# [Hybrid Molecule](https://doi.org/10.1088/2058-9565/adbdee)
+Create your Hybrid Molecule.
+
+Example:
 ```python
-import sunrise as sun # first time might take some seconds
+import sunrise as sun
 import tequila as tq
 
 molecule  = sun.Molecule(geometry="H 0. 0. 0. \n Li 0. 0. 1.5",basis_set="sto-3g",select="BBFBF",nature='h')
 print(molecule.select)
 ```
 
-it can be also initialized as
-
+Which can be also initialized as:
 ```python
 import sunrise as sun
 from sunrise.molecules import HyMolecule
@@ -104,13 +123,12 @@ print(molecule.select)
 ```
 
 ### Construct your circuit
-The SPA circuit (and all the automatically built circuits) are already adapted to your encoding
+The SPA circuit (and all the automatically built circuits) are already adapted to your encoding.
 
 ```python
 Uspa = molecule.make_ansatz("SPA",edges=[(0,1)])
 ```
-however, one can also  build its own circuits:
-
+However, one can also  build its own circuits:
 ```python
 U = tq.QCircuit() # see more on https://github.com/tequilahub/tequila-tutorials/
 # Prepare the reference HF state if any other provided
@@ -122,6 +140,7 @@ U += molecule.UR(2,4,angle=(2,4,"UR"))
 # Generic excitation
 U += molecule.make_excitation_gate(indices=[(0,4),(1,8)],angle=tq.Variable('a')) 
 ```
+
 ### Minimize the Energy of the Circuit Expectation Value
 
 ```python
@@ -136,7 +155,7 @@ print('Minimized Energy: ', mini.energy)
 ```
 
 ### Optimize your Orbitals
-Molecular orbitals can be optimized taking advantage of this Hybrid Encoding
+Molecular orbitals can be optimized taking advantage of this Hybrid Encoding.
 
 ```python
 result = sun.optimize_orbitals(molecule=molecule,circuit=Uspa,initial_guess='random') 
@@ -146,13 +165,13 @@ print("Opt SPA Energy = ",result.energy)
 print("Select: ",omol.select)
 ```
 
-Find this example in the test file
+Please, note that the present example can be found in the test file.
+
 
 # [HCB measurement optimization](https://arxiv.org/abs/2504.03019)
 Optimize the measurement procedure of a molecule energy by using the HCB encoding and multiple rotations.
 
 Example using quantum circuit (Scenario II):
-
 ```python
 import tequila as tq
 import sunrise as sun
@@ -212,11 +231,8 @@ list of electron pairings and bond assignments. Currently only implemented with 
 import sunrise as sun
 import tequila as tq
 
-geometry = """
-    O 0.000000 0.000000 0.000000
-    H 0.757000 0.586000 0.000000
-    H -0.757000 0.586000 0.000000
-    """
+geometry = """    O 0.000000 0.000000 0.000000\n H 0.757000 0.586000 0.000000\nH -0.757000 0.586000 0.000000"""
+
 mol = sun.Molecule(geometry=geometry, basis_set='sto-3g',nature='h').use_native_orbitals()
 initial_guess = mol.get_spa_guess()
 edges = mol.get_spa_edges()
@@ -234,15 +250,12 @@ Interface with the [PYSCF](https://pyscf.org/)  [cubegen](https://pyscf.org/pysc
 
 ```python
 mol = opt.molecule
-sun.plot_MO(molecule=mol,file_name="water")
+sun.plot_MO(molecule=mol,filename="water")
 ```
-The cubefile generation may take some time. Here we provided a tq.Molecule but it also accepts any molecule class with
-mol.parameters and mol.integral_manager
+The cubefile generation may take some time. Here we provided a tq.Molecule but it also accepts any molecule class with mol.parameters and mol.integral_manager
 
 #  Circuit Visualizer
-Improved circuit visualizer which creates the circuit qpic file with improved circuit structures in common chemistry
-building blocks as the electronic excitation gates. It creates gates in molecular orbitals picture, halving the 
-number of qubits displayed.
+Improved circuit visualizer which creates the circuit qpic file with improved circuit structures in common chemistry building blocks as the electronic excitation gates. It creates gates in molecular orbitals picture, halving the number of qubits displayed.
 
 ### Automatized way
 ```python
@@ -264,10 +277,10 @@ U += mol.UC(1,2,2) # Pair correlator
 visual_circuit = sun.graphical.GCircuit.from_circuit(U, n_qubits_is_double=True) # Translate tq.QCircuit in renderable Circuit
 
 visual_circuit.export_qpic("from_circuit_example") # Create qpic file
-sun.qpic_to_png("from_circuit_example") # Create png file
-sun.qpic_to_pdf("from_circuit_example") # Create png file
+visual_circuit.export_to("from_circuit_example.pdf") # Create pdf file
+visual_circuit.export_to("from_circuit_example.png") # Create png file
 ```
-A similar thing can be done the FCircuit.\
+Similarly, the same protocol can be followed for FCircuits.
 
 ### Manual way
 ```python
@@ -295,15 +308,14 @@ circuit = g.GCircuit([
     g.PairCorrelatorGate(i=1,j=3,angle=4)
 ])
 
-circuit.export_qpic("test") # Create qpic file
-sun.qpic_to_png("test") # Create png file
-sun.qpic_to_pdf("test") # Create pdf file
+circuit.export_to("test.png") # Create png file
+circuit.export_to("test.pdf") # Create pdf file
 ```
 
-this cirucit can be latter exported to tequila circuit:
-
+Which can be latter exported to tequila circuit:
 ```python
 U = circuit.construct_circuit()
 U += tq.gates.X(1)
+print(U)
 ```
   

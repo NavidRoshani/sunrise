@@ -33,7 +33,6 @@ class DoubleExcitation(PairCorrelatorGate):
 
         if self.control is not None:
             used.append(self.control // (1+(not self.n_qubits_is_double)))
-
         return used
 
     def construct_circuit(self, *args, **kwargs):

@@ -3,7 +3,7 @@ import numbers
 from ..core import CircuitState, CircuitStyle
 from . import PairCorrelatorGate
 from ..core import Polygon
-
+from typing import List
 
 class SingleExcitation(PairCorrelatorGate):
     """
@@ -38,3 +38,14 @@ class SingleExcitation(PairCorrelatorGate):
         result = " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.i // ((not self.n_qubits_is_double)+1),shape=shape1, gcol=gcol,tcol="{" + tcol.name + "}",op="")
         result += " a{qubit} P:fill={gcol}:shape={shape} \\textcolor{tcol}{{{op}}} ".format(qubit=self.j // ((not self.n_qubits_is_double)+1),shape=shape2, gcol=gcol,tcol="{" + tcol.name + "}",op="")
         return result
+    
+    def used_wires(self) -> List[int]:
+
+        xi = self.i// ((not self.n_qubits_is_double)+1)
+        xj = self.j// ((not self.n_qubits_is_double)+1)
+
+        used = list(range(min(xi, xj), max(xi, xj) + 1))
+        if self.control is not None:
+            used.append(self.control// ((not self.n_qubits_is_double)+1))
+
+        return used
