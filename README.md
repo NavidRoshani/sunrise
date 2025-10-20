@@ -64,7 +64,6 @@ mol = sun.Molecule(geometry=geom,basis_set='sto-3g',nature='f')
 U = mol.make_ansatz('UpCCSD')
 print(U)
 ```
-
 Finally, they can be employed in a similar way to tequila `QCircuit` or converted to them:
 ```python
 U = ...
