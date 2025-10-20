@@ -1,11 +1,3 @@
-   mmmm                                     ##                        
- m#""""#                                    ""                        
- ##m       ##    ##  ##m####m   ##m####   ####     mm#####m   m####m  
-  "####m   ##    ##  ##"   ##   ##"         ##     ##mmmm "  ##mmmm## 
-      "##  ##    ##  ##    ##   ##          ##      """"##m  ##"""""" 
- #mmmmm#"  ##mmm###  ##    ##   ##       mmm##mmm  #mmmmm##  "##mmmm# 
-  """""     """" ""  ""    ""   ""       """"""""   """"""     """""                                       
-
 Sunrise is a package for all-around fermionic state preparation and simulation on quantum computers.
 It holds no qubits, but only physical information, making it efficient for storage and manipulation.
 
