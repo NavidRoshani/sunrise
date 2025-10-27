@@ -80,4 +80,6 @@ def optimize_orbitals(molecule,circuit=FCircuit,backend:str='tequila',pyscf_argu
     result = tq_opt_orbs(molecule=molecule,circuit=circuit,vqe_solver=vqe_solver,pyscf_arguments=pyscf_arguments,silent=silent,initial_guess=initial_guess,return_mcscf=return_mcscf,molecule_factory=molecule_factory,molecule_arguments=molecule_arguments,restrict_to_active_space=restrict_to_active_space,*args,**kwargs)
     if isinstance(molecule,HybridBase):
         result.molecule = HybridBase(**molecule_arguments, integral_manager=result.molecule.integral_manager)
+    elif isinstance(molecule,FermionicBase):
+        result.molecule = FermionicBase(parameters=result.molecule.parameters, integral_manager=result.molecule.integral_manager)
     return result

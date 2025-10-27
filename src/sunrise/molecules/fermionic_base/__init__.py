@@ -105,7 +105,7 @@ def FerMolecule(geometry: str = None,basis_set: str = None,orbital_type: str = N
             backend = "base"
 
     if backend not in SUPPORTED_QCHEMISTRY_BACKENDS:
-        raise Exception(str(backend) + " is not (yet) supported by Hybrid Molecule")
+        raise Exception(str(backend) + " is not (yet) supported by Fermionic Molecule")
     if backend not in INSTALLED_QCHEMISTRY_BACKENDS:
         raise Exception(str(backend) + " was not found on your system")
 

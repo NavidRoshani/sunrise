@@ -1,7 +1,8 @@
 import tencirchem as tcc
 from sunrise.expval.tcc_engine.braket import EXPVAL
 from ..fermionic_operations.circuit import FCircuit
-from tequila import TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective,assign_variable,grad
+from tequila import TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective,assign_variable
+from tequila import grad as tq_grad
 from tequila.objective.objective import Variables,FixedVariable
 from tequila.quantumchemistry.chemistry_tools import NBodyTensor
 from tequila.quantumchemistry import qc_base
@@ -245,7 +246,7 @@ class TCCBraket:
                     braket.bra = k
                     braket.variables_bra = v
                     idx = k.index(exct)
-                    ph = grad(v[idx],variable) if not isinstance(v[idx],Union[Variable,FixedVariable]) else 1.
+                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Union[Variable,FixedVariable]) else 1.
                     v[idx] +=  s[ket]*pi/2 
                     for p in reversed(p0):
                         k.insert(idx,[p])
@@ -258,7 +259,7 @@ class TCCBraket:
                     if exct not in k:
                         return 0.
                     idx = k.index(exct)
-                    ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
+                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
                     v[idx] +=  s[ket]*pi/2
                     for p in reversed(p0):
                         k.insert(idx,[p])
@@ -270,7 +271,7 @@ class TCCBraket:
                     k = deepcopy(braket.ket)
                     v = deepcopy(braket.params_ket)
                     idx = k.index(exct)
-                    ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
+                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
                     v[idx] +=  s[ket]*pi/2 
                     for p in reversed(p0):
                         k.insert(idx,[p])
@@ -283,7 +284,7 @@ class TCCBraket:
                     if exct not in k:
                         return 0.
                     idx = k.index(exct)
-                    ph = grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
+                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
                     v[idx] +=  s[ket]*pi/2
                     for p in reversed(p0):
                         k.insert(idx,[p])

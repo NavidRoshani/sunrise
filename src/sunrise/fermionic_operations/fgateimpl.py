@@ -110,14 +110,11 @@ class FGateImpl:
 
     def dagger(self):
         indinces = []
-        variables = []
         cir = deepcopy(self)
         for gate in reversed(cir._indices):
             indinces.extend([[tuple([*idx][::-1]) for idx in gate]])
         cir.indices = indinces
-        for v in cir._variables:
-            variables.append(-1*v)
-        cir.variables = variables
+        cir.variables = -1*self.variables
         return cir
 
     @property
@@ -166,5 +163,8 @@ class UCImpl(FGateImpl):
     
 class PhaseImpl(FGateImpl):
     def __init__(self,i, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None):
-        super().__init__([[(2*i,2*i)]], variables, False)
+        super().__init__([[(i,i)]], variables, False)
         self._name = 'Ph'
+
+    def __str__(self):
+        return f'{self.name}(Target = {(self.indices[0][0][0],)} Variable = {repr(self.variables)})'

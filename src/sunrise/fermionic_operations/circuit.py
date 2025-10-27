@@ -271,7 +271,7 @@ class FCircuit:
         """
         result = FCircuit()
         for g in reversed(self.gates):
-            result += g.dagger()
+            result += self.wrap_gate(g.dagger())
         return result
 
     def extract_variables(self) -> list:
