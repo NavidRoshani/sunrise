@@ -17,6 +17,9 @@ from copy import deepcopy
 from typing import Union,List,Tuple
 from collections import defaultdict
 from openfermion import FermionOperator
+from openfermion.transforms import jordan_wigner
+from openfermion.transforms.opconversions.term_reordering import reorder
+from openfermion.utils.indexing import up_then_down
 
 class TCCBraket:
     def __init__(self,bra:FCircuit|None=None,ket:FCircuit|None=None,operator:Union[str,FermionOperator,List[FermionOperator]]=None,backend_kwargs:dict|None={},*args,**kwargs):
@@ -620,11 +623,7 @@ class TCCBraket:
             from_string(operator)
             return None
         elif isinstance(operator,FermionOperator):
-            from openfermion.transforms import jordan_wigner
-            from openfermion.transforms.opconversions.term_reordering import reorder
-            from openfermion.utils.indexing import up_then_down
             operator = reorder(operator=operator,order_function=up_then_down,num_modes=2*len(self.BK.aslst))
-            print(operator)
             if () in operator.terms.keys():
                 c = operator.terms[()]
                 operator -= FermionOperator((),c)
@@ -642,8 +641,6 @@ class TCCBraket:
         pos = {j:i for i,j in enumerate(ci_vec)}
         for st in ci_vec:
             win  = QubitWaveFunction.from_string(f'1|{st}>').apply_qubitoperator(operator)
-            print('win ',QubitWaveFunction.from_string(f'1|{st}>'))
-            print('out ',win)
             for k in win._state.keys(): #IDEA on the current tequila implementation, QubitWaveFunction._state when applying operator is always a dict, if changes this needs to be updated
                 idk = bin(k)[2:].zfill(2*len(self.BK.aslst))
                 if idk in pos and not isclose(win._state[k].real,0.0):
