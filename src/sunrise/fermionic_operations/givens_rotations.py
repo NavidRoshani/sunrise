@@ -188,7 +188,6 @@ def reconstruct_matrix_from_givens(n:int, theta_list:Union[list,tuple], phi_list
         angle, i = phi
         if isinstance(angle, (Variable, Objective)):
             reconstructed[i, i] = reconstructed[i, i]*angle.apply(numpy.cos) + 1j*reconstructed[i, i]*angle.apply(numpy.sin)
-            print('-->',simulate(reconstructed[i, i],variables={'b':0.5}))
         else:
             # Directly apply a sign flip if the rotation angle is π
             if numpy.isclose(angle, numpy.pi, atol=tol):

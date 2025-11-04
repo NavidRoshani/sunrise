@@ -242,7 +242,7 @@ class EXPVAL(UCC):
         if engine is None:
             engine = self.engine
         if self.is_diagonal():
-            return self.energy(angles=angles,engine=engine)
+            return self.energy(angles=angles,engine=engine,hamiltonian=hamiltonian)
         self._sanity_check()
         if angles is None:
             angles = []
@@ -289,7 +289,7 @@ class EXPVAL(UCC):
         if engine is None:
             engine = self.engine
         if not self.is_diagonal():
-            return self.expval(angles=angles,engine=engine)
+            return self.expval(angles=angles,engine=engine,hamiltonian=hamiltonian)
         self._sanity_check()
         if angles is None:
             angles = []
@@ -338,6 +338,8 @@ class EXPVAL(UCC):
         """
         if engine is None:
             engine = self.engine
+        if self.is_diagonal():
+            return self.energy_and_grad(angles=angles,engine=engine,hamiltonian=hamiltonian)
         self._sanity_check()
         angles  = self._check_params_argument(angles)
         if hamiltonian is None:
@@ -387,6 +389,8 @@ class EXPVAL(UCC):
             """
             if engine is None:
                 engine = self.engine
+            if not self.is_diagonal():
+                return self.expval_and_grad(angles=angles,engine=engine,hamiltonian=hamiltonian)
             self._sanity_check()
             angles = self._check_params_argument(angles)
             if hamiltonian is None:

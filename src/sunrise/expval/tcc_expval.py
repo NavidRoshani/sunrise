@@ -1,14 +1,15 @@
 import tencirchem as tcc
+from tencirchem.static.ci_utils import get_ci_strings
 from sunrise.expval.tcc_engine.braket import EXPVAL
 from ..fermionic_operations.circuit import FCircuit
-from tequila import TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective,assign_variable
+from tequila import TequilaException,Molecule,QubitWaveFunction,simulate,Variable,Objective,assign_variable,QubitHamiltonian
 from tequila import grad as tq_grad
 from tequila.objective.objective import Variables,FixedVariable
 from tequila.quantumchemistry.chemistry_tools import NBodyTensor
 from tequila.quantumchemistry import qc_base
 from tequila.utils.bitstrings import BitString
 from numbers import Number
-from numpy import ceil,argwhere,pi,prod,eye,zeros
+from numpy import ceil,argwhere,pi,prod,eye,zeros,isclose
 from pyscf.gto import Mole
 from pyscf.scf import RHF
 from sunrise.expval.pyscf_molecule import from_tequila
@@ -19,6 +20,7 @@ from openfermion import FermionOperator
 
 class TCCBraket:
     def __init__(self,bra:FCircuit|None=None,ket:FCircuit|None=None,operator:Union[str,FermionOperator,List[FermionOperator]]=None,backend_kwargs:dict|None={},*args,**kwargs):
+        self.operator = None
         if 'engine' in backend_kwargs:
             engine = backend_kwargs['engine']
             backend_kwargs.pop('engine')
@@ -166,11 +168,10 @@ class TCCBraket:
         if 'name' in kwargs:
             self._name = kwargs['name']
         else: self._name = 'Expectation Value' if self.is_diagonal else "Transition Value"
-        self.operator = operator
-        if self.operator == 'I':
+        if operator == 'I':
             self._name = 'Transition Element'
-        if self.operator is not None:
-            self.integrals_from_operators(self.operator)
+        if operator is not None:
+            self.operator = self.build_operator(operator)
         
     def minimize(self,**kwargs)->float:
         if 'init_guess_bra' in kwargs:
@@ -202,7 +203,7 @@ class TCCBraket:
                 v.update(variables)
             tvars: list = deepcopy(self.BK.total_variables)
             variables:list = [map_variables(x,v) for x in tvars]
-        return self.BK.expval(angles=[i/2 for i in variables])
+        return self.BK.expval(angles=[-0.5*i for i in variables],hamiltonian=self.operator)
 
     def extract_variables(self) -> list:
         """
@@ -320,7 +321,7 @@ class TCCBraket:
             # g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=True,p0sign=False) #wfn always real for tcc 
             g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=False,p0sign=True)
             # g +=apply_phase(braket=deepcopy(self),exct=exct,variable=variable,ket=False,p0sign=False) #wfn always real for tcc
-        return -0.5*g
+        return 0.5*g
 
     @property
     def energy(self)->float:
@@ -591,52 +592,64 @@ class TCCBraket:
         else:
             return len(self.BK.civector(params=[.0 for _ in range(self.BK.n_variables_ket)]))
 
-    def integrals_from_operators(self,operator:Union[str,FermionOperator,List[FermionOperator]]=None,inplace:bool=True):
-        if inplace:
-            bk = self
-        else: bk = deepcopy(self)
-        if isinstance(operator,str):
+    def build_operator(self,operator:Union[str,FermionOperator,QubitHamiltonian]=None):
+        '''
+        Build the expectation value operator. 
+        Even if it is accepted a QubitHamiltonian, we disencorage its use here since TCC works on fermionic states.
+        It will be applied to the ci_vector and kept these results which doesn't leave the ci_vector space with READ Coeff.
+        '''
+        def from_string(operator:str):
             if operator.upper()=="I":
-                nmo = len(bk.BK.aslst)
-                bk.BK.hamiltonian = None
-                bk.BK.int1e = zeros((nmo,nmo))
+                nmo = len(self.BK.aslst)
+                self.BK.hamiltonian = None
+                self.BK.int1e = zeros((nmo,nmo))
                 int2e = zeros((nmo,nmo,nmo,nmo))
                 for i in range(nmo):
                     int2e[i,i,i,i] = 1#0.5
-                bk.BK.int2e = int2e
-                bk.BK.e_core = 0.
-                bk.BK.hamiltonian_lib = {}
+                self.BK.int2e = int2e
+                self.BK.e_core = 0.
+                self.BK.hamiltonian_lib = {}
             elif operator.upper() == "H":
                 pass
             else:
                 raise TequilaException(f"No operator str {operator} supported on TCC BraKet")
+        
+        if operator is None:
+            return None
+        if isinstance(operator,str):
+            from_string(operator)
+            return None
         elif isinstance(operator,FermionOperator):
-            nmo = len(bk.BK.aslst)
-            int1e = zeros((nmo,nmo))
-            int2e = zeros((nmo,nmo,nmo,nmo))
-            c = 0
-            for oper,val in operator.terms.items():
-                if len(oper) ==2:
-                    int1e[oper[0][0]//2,oper[1][0]//2] += 0.25*val # expected RHF integrals 
-                elif len(oper)==4:
-                    int2e[oper[0][0]//2,oper[3][0]//2,oper[1][0]//2,oper[2][0]//2] += 0.5*val
-                elif not len(oper):
-                    c += val
-                else:
-                    raise TequilaException(f'Operator {oper} not supported, only one and two-body operators allowed')
-            bk.BK.e_core = c
-            bk.BK.int2e = int2e
-            bk.BK.int1e = int1e
-            bk.BK.hamiltonian = None
-            bk.BK.hamiltonian_lib = {}
-        elif isinstance(operator,list) and all([isinstance(op,FermionOperator) for op in operator]):
-            operator = [deepcopy(self).integrals_from_operators(op,inplace=False) for op in operator]
-            return operator
+            from openfermion.transforms import jordan_wigner
+            from openfermion.transforms.opconversions.term_reordering import reorder
+            from openfermion.utils.indexing import up_then_down
+            operator = reorder(operator=operator,order_function=up_then_down,num_modes=2*len(self.BK.aslst))
+            print(operator)
+            if () in operator.terms.keys():
+                c = operator.terms[()]
+                operator -= FermionOperator((),c)
+            operator = jordan_wigner(operator)
+            operator.compress()
+            operator = QubitHamiltonian.from_openfermion(operator)
+        elif isinstance(operator,QubitHamiltonian):
+            self.BK.e_core = 0
         else:
             raise TequilaException(f"No operator {type(operator).__name__} supported")
-
-        if not inplace:
-            return bk
+        ci_vec = get_ci_strings(n_elec_s=self.BK.n_elec,n_qubits=2*len(self.BK.aslst),mode='fermion')
+        mop = zeros((len(ci_vec),len(ci_vec)))
+        ci_vec = [bin(i)[2:][::-1] for i in ci_vec]
+        ci_vec = [i+'0'*(2*len(self.BK.aslst)-len(i)) for i in ci_vec]
+        pos = {j:i for i,j in enumerate(ci_vec)}
+        for st in ci_vec:
+            win  = QubitWaveFunction.from_string(f'1|{st}>').apply_qubitoperator(operator)
+            print('win ',QubitWaveFunction.from_string(f'1|{st}>'))
+            print('out ',win)
+            for k in win._state.keys(): #IDEA on the current tequila implementation, QubitWaveFunction._state when applying operator is always a dict, if changes this needs to be updated
+                idk = bin(k)[2:].zfill(2*len(self.BK.aslst))
+                if idk in pos and not isclose(win._state[k].real,0.0):
+                    mop[pos[st],pos[idk]] = win._state[k].real
+        self.BK.e_core = 0
+        return mop
 
 def init_state_from_wavefunction(wvf:QubitWaveFunction):
     if not isinstance(wvf._state,dict):

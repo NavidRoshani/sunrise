@@ -22,6 +22,7 @@ import numpy
 from itertools import product
 from sunrise.fermionic_operations.givens_rotations import get_givens_circuit as __get_givens_circuit
 from sunrise.fermionic_operations.givens_rotations import n_rotation as __n_rotation
+from sunrise.fermionic_operations.givens_rotations import reconstruct_matrix_from_circuit
 from sunrise.hybridization.hybridization import Graph
 
 from tequila.quantumchemistry.qc_base import QuantumChemistryBase
@@ -133,8 +134,6 @@ class FermionicBase(QuantumChemistryBase):
         else:
             active_orbitals = kwargs["active_orbitals"]
             kwargs.pop("active_orbitals")
-        if transformation is None:
-            transformation = molecule.transformation
         parameters = molecule.parameters
         return cls(
             nuclear_repulsion=c,
@@ -392,8 +391,7 @@ class FermionicBase(QuantumChemistryBase):
         New molecule with transformed orbitals
         """
         if isinstance(orbital_coefficients,FCircuit):
-            assert all([gate.name in ['UR','Ph'] for gate in orbital_coefficients.gates])
-            raise NotImplementedError("Not yet")
+            U = reconstruct_matrix_from_circuit(orbital_coefficients,self.n_orbitals,tol=1.e-6)
         U = numpy.eye(self.integral_manager.orbital_coefficients.shape[0])
         # mo_coeff by default only acts on the active space
         active_indices = [o.idx_total for o in self.integral_manager.active_orbitals]
@@ -1213,7 +1211,7 @@ class FermionicBase(QuantumChemistryBase):
 
         def _get_qop_hermitian(of_operator):
             """Returns Hermitian"""
-            return of_operator + hermitian_conjugated(of_operator)
+            return 0.5*(of_operator + hermitian_conjugated(of_operator))
 
         def _build_1bdy_operators_spinful() -> list:
             """Returns spinful one-body operators as a symmetry-reduced list of QubitHamiltonians"""
