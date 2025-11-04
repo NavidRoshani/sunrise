@@ -104,8 +104,7 @@ class FGateImpl:
 
     def map_variables(self,var_map:dict={}):
         if self.is_parameterized():
-            if self.variables in var_map:
-                self.variables = var_map[self.variables]
+            self.variables = self.variables.map_variables(var_map)
         return self
 
     def dagger(self):
