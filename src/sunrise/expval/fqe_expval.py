@@ -220,6 +220,7 @@ class FQEBraKet:
         self.ket_instructions = ket_instructions
         ket_angles = ket.variables
         self.ket_angles = ket_angles
+        self.non_fixed_variables_ket = ket.extract_variables()
 
         self.ket_generator = create_fermionic_generators(ket_instructions, ket_angles)
         self.ket_generator_idx_map={}
@@ -240,6 +241,7 @@ class FQEBraKet:
         bra_instructions = None
         bra_angles = None
         init_bra = None
+        non_fixed_variables_bra = None
         self.constant_dict_bra = {}
         if bra is not None:
             bra = bra.to_udud(norb=self.n_orbitals)
@@ -250,6 +252,7 @@ class FQEBraKet:
             self.parameter_map_bra = list(dict.fromkeys(self.parameter_map_bra))
             bra_instructions = bra.extract_indices()
             bra_angles = bra.variables
+            non_fixed_variables_bra = bra.extract_variables()
 
             self.bra_generator = create_fermionic_generators(bra_instructions, bra_angles)
             for i, gen in enumerate(self.bra_generator.keys()):
@@ -259,6 +262,7 @@ class FQEBraKet:
         self.bra_instructions = bra_instructions
         self.bra_angles = bra_angles
         self.init_bra = init_bra
+        self.non_fixed_variables_bra = non_fixed_variables_bra
 
 
         if bra is None:
@@ -362,10 +366,10 @@ class FQEBraKet:
             print(self.bra_generator)
 
     def extract_ket_variables(self):
-        return self.ket_angles
+        return self.non_fixed_variables_ket
 
     def extract_bra_variables(self):
-        return self.bra_angles
+        return self.non_fixed_variables_bra
 
     def extract_variables(self):
         ket_v = self.extract_ket_variables()
