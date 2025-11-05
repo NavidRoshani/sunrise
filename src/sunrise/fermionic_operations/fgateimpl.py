@@ -47,8 +47,8 @@ class FGateImpl:
             return False
         return True
             
-    def is_parameterized(self,):
-        return not isinstance(self.variables,FixedVariable)
+    def is_parameterized(self)->bool:
+        return not isinstance(self.variables,(FixedVariable,numbers.Number))
 
     @property
     def indices(self):
@@ -59,9 +59,10 @@ class FGateImpl:
         self._indices = indices
     
     def extract_variables(self)->list[Variable]:
-        if isinstance(self.variables,FixedVariable):
-            return [self.variables]
-        return self.variables.extract_variables()
+        if self.is_parameterized() and hasattr(self.variables, "extract_variables"):
+            return self.variables.extract_variables()
+        else:
+            return []
 
     @property
     def variables(self)->Variable:
@@ -103,9 +104,9 @@ class FGateImpl:
         return self
 
     def map_variables(self,var_map:dict={}):
-        if self.is_parameterized():
+        if self.is_parameterized() and hasattr(self.variables, "extract_variables"):
             self.variables = self.variables.map_variables(var_map)
-        return self
+        return self 
 
     def dagger(self):
         indinces = []

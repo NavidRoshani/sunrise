@@ -563,7 +563,7 @@ class FCircuit:
 
         new_gates = [copy.deepcopy(gate).map_variables(variables) for gate in self.gates]
 
-        return FCircuit(gates=new_gates,initial_state=self.initial_state,parameter_map=self._parameter_map)
+        return FCircuit(gates=new_gates,initial_state=self.initial_state)
 
     def to_matrix(self, variables=None): #TODO:  Should we?
         pass 
