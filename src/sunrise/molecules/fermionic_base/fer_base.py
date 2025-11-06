@@ -391,7 +391,7 @@ class FermionicBase(QuantumChemistryBase):
         New molecule with transformed orbitals
         """
         if isinstance(orbital_coefficients,FCircuit):
-            U = reconstruct_matrix_from_circuit(orbital_coefficients,self.n_orbitals,tol=1.e-6)
+            orbital_coefficients = numpy.array(reconstruct_matrix_from_circuit(orbital_coefficients,self.n_orbitals,tol=1.e-6)) 
         U = numpy.eye(self.integral_manager.orbital_coefficients.shape[0])
         # mo_coeff by default only acts on the active space
         active_indices = [o.idx_total for o in self.integral_manager.active_orbitals]
@@ -401,7 +401,10 @@ class FermionicBase(QuantumChemistryBase):
         else:
             for kk, k in enumerate(active_indices):
                 for ll, l in enumerate(active_indices):
-                    U[k][l] = orbital_coefficients[kk][ll]
+                    if isinstance(orbital_coefficients[kk][ll],Objective):
+                        U[k][l] = simulate(orbital_coefficients[kk][ll])
+                    else:
+                        U[k][l] = orbital_coefficients[kk][ll]
 
         # can not be an instance of a specific backend (otherwise we get inconsistencies with classical methods in the backend)
         integral_manager = copy.deepcopy(self.integral_manager)

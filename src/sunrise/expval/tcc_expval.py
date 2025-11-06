@@ -9,7 +9,7 @@ from tequila.quantumchemistry.chemistry_tools import NBodyTensor
 from tequila.quantumchemistry import qc_base
 from tequila.utils.bitstrings import BitString
 from numbers import Number
-from numpy import ceil,argwhere,pi,prod,eye,zeros,isclose
+from numpy import ceil,argwhere,pi,prod,eye,zeros,isclose,allclose
 from pyscf.gto import Mole
 from pyscf.scf import RHF
 from sunrise.expval.pyscf_molecule import from_tequila
@@ -71,13 +71,19 @@ class TCCBraket:
                 mo_coeff = molecule.integral_manager.orbital_coefficients 
                 aslst = [i.idx_total for i in molecule.integral_manager.active_orbitals]
                 active_space = (molecule.n_electrons,molecule.n_orbitals)
-                molecule = from_tequila(molecule)
+                if allclose(mo_coeff,eye(len(mo_coeff))): #idea when initialized the molecule from integrals, the mo_coeff are setted to identity and the provided integral are saved on the place of the Atomic Integrals
+                    e_core,int1e,int2e = molecule.get_integrals()
+                    int2e = int2e.reorder('c').elems
+                    self.BK:EXPVAL = EXPVAL.from_integral(int1e=int1e, int2e=int2e,n_elec=molecule.n_electrons, e_core=e_core,mo_coeff=mo_coeff,init_method="zeros",engine=engine,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,**backend_kwargs)
+                else:
+                    molecule = from_tequila(molecule)
+                    self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",aslst=aslst,active_space=active_space,engine=engine,mo_coeff=mo_coeff,**backend_kwargs)
             elif isinstance(molecule,Mole):
                 mf = RHF(mol=molecule)
                 mo_coeff =mf.mo_coeff
                 aslst = [*range(molecule.nao_nr_range)]
                 active_space = (molecule.nelectron,molecule.nao_nr)
-            self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",aslst=aslst,active_space=active_space,engine=engine,mo_coeff=mo_coeff,**backend_kwargs)
+                self.BK:EXPVAL = EXPVAL(mol=molecule,run_hf= run_hf, run_mp2= False, run_ccsd= False, run_fci= False,init_method="zeros",aslst=aslst,active_space=active_space,engine=engine,mo_coeff=mo_coeff,**backend_kwargs)
         elif 'integral_manager' in kwargs and 'parameters' in kwargs:
             integral = kwargs['integral_manager']
             params = kwargs['parameters']

@@ -512,6 +512,7 @@ class FCircuit:
         """
         if not len(self._gates) is None and self.initial_state is None:
             return True
+        test = []
         for (k,v,) in self._parameter_map.items():
             test = [self.gates[x[0]] == x[1] for x in v]
             test += [k in self._gates[x[0]].extract_variables() for x in v]
