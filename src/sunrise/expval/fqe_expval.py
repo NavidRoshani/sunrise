@@ -172,14 +172,12 @@ class FQEBraKet:
         if construct_ham:
             if integral_flag is True:
                 self.h_of = make_fermionic_hamiltonian(one_body_integrals, two_body_integrals, constant,)
-                self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of)
                 self.n_orbitals = one_body_integrals.shape[0]
+                self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of,norb=self.n_orbitals)
                 n_ele = kwargs.get("n_ele")
 
             elif operator_flag_custom is True:
-
                 self.h_of = operator
-                self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of)
                 if mol is None:
                     self.n_orbitals = kwargs.get("n_orbitals")
                     n_ele = kwargs.get("n_ele")
@@ -187,11 +185,12 @@ class FQEBraKet:
                     c,h,g = mol.get_integrals()
                     self.n_orbitals = h.shape[0]
                     n_ele = mol.n_electrons
+                self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of,norb=self.n_orbitals)
             elif molecule_flag is True:
                 c,h,g = mol.get_integrals()
                 self.h_of = make_fermionic_hamiltonian(one_body_integrals=h, two_body_integrals=g.elems, constant=c)
-                self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of)
                 self.n_orbitals = h.shape[0]
+                self.h_fqe = fqe.get_hamiltonian_from_openfermion(self.h_of,norb=self.n_orbitals)
                 n_ele = mol.n_electrons
         else:
             self.h_fqe = None

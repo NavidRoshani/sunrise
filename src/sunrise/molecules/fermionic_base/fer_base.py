@@ -391,7 +391,7 @@ class FermionicBase(QuantumChemistryBase):
         New molecule with transformed orbitals
         """
         if isinstance(orbital_coefficients,FCircuit):
-            orbital_coefficients = numpy.array(reconstruct_matrix_from_circuit(orbital_coefficients,self.n_orbitals,tol=1.e-6)) 
+            orbital_coefficients = numpy.array(reconstruct_matrix_from_circuit(orbital_coefficients,self.n_orbitals,tol=1.e-6)).T
         U = numpy.eye(self.integral_manager.orbital_coefficients.shape[0])
         # mo_coeff by default only acts on the active space
         active_indices = [o.idx_total for o in self.integral_manager.active_orbitals]

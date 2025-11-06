@@ -46,7 +46,7 @@ def optimize_orbitals(molecule,circuit=FCircuit,backend:str='tequila',pyscf_argu
                 silent = backend_kwargs['silent']
                 backend_kwargs.pop('silent')
             else: silent = True
-            return minimize(Braket(backend=backend,molecule=molecule,circuit=self.U,**backend_kwargs),silent=True)
+            return minimize(Braket(backend=backend,molecule=molecule,circuit=self.U,**backend_kwargs),silent=silent)
     vqe_solver = solver(backend=backend,circuit=circuit)
     
     if isinstance(molecule,HybridBase):
