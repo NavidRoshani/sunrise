@@ -27,12 +27,18 @@ def transform(original:QuantumChemistryBase,janpa:QuantumChemistryBase)->Quantum
         ov[idx] = 0
     co.sort()
     active = [i for i in range(len(original.integral_manager.orbitals)) if  i not in co]
+    reference_orbitals = []
+    i =0
+    while len(reference_orbitals)<original.parameters.total_n_electrons//2-len(core):
+        if i not in co:
+            reference_orbitals.append(i)
+        i += 1
     integral_manager = janpa.initialize_integral_manager(one_body_integrals=original.integral_manager.one_body_integrals,
                     two_body_integrals=original.integral_manager.two_body_integrals,constant_term=original.integral_manager.constant_term,
                     active_orbitals=active,frozen_orbitals=co,orbital_coefficients=janpa.integral_manager.orbital_coefficients,
-                    overlap_integrals=original.integral_manager.overlap_integrals)
+                    overlap_integrals=original.integral_manager.overlap_integrals,reference_orbitals=reference_orbitals + co)
     parameters = deepcopy(original.parameters)
-    return QuantumChemistryBase(parameters=parameters,integral_manager=integral_manager,transformation=original.transformation,active_orbitals=active)
+    return QuantumChemistryBase(parameters=parameters,integral_manager=integral_manager,transformation=original.transformation)
 
 
 geo = '''
@@ -83,3 +89,6 @@ fmol, mo_energy, mo_coeff, mo_occ, irrep_labels, spins = molden.load(f'{name}_CL
 mol = transform(mol,sun.MoleculeFromPyscf(molecule=fmol,mo_coeff=mo_coeff,basis_set=basis))
 print(f'Overall Time {time()-begining} s')
 sun.plot_MO(mol,filename=f'{name}_CLPO')
+
+# JANPA orders the orbitals by bonding-antibonding pairs, therefore the edges will be:
+edges = [(2*i,2*i+1) for i in range(mol.n_electrons//2)]
