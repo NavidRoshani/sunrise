@@ -53,7 +53,8 @@ def MoleculeFromPyscf(molecule:Mole,mo_coeff:ndarray|None=None,transformation:st
     geo = ''
     for i in  range(len(molecule.atom_coords())):
             c = molecule.atom_coord(i,unit="UA")
-            geo += f'{molecule.atom_symbol(i)} {c[0]} {c[1]} {c[2]}\n'
+            at = ''.join(x for x in molecule.atom_symbol(i) if x.isalpha())
+            geo += f'{at} {c[0]} {c[1]} {c[2]}\n'
     if len(molecule.basis):
         basis = molecule.basis
     elif 'basis_set' in kwargs: #when reading molden files, the basis name is lost
