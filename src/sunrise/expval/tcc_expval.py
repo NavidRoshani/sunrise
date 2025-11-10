@@ -632,12 +632,10 @@ class TCCBraket:
             return None
         elif isinstance(operator,FermionOperator):
             operator = reorder(operator=operator,order_function=up_then_down,num_modes=2*len(self.BK.aslst))
-            if () in operator.terms.keys():
-                c = operator.terms[()]
-                operator -= FermionOperator((),c)
             operator = jordan_wigner(operator)
             operator.compress()
             operator = QubitHamiltonian.from_openfermion(operator)
+            self.BK.e_core = 0
         elif isinstance(operator,QubitHamiltonian):
             self.BK.e_core = 0
         else:
