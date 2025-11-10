@@ -201,7 +201,7 @@ class TCCBraket:
     def __call__(self, variables:Union[list,dict]={}, *args, **kwargs) -> float:
         return self.simulate(variables=variables)
 
-    def simulate(self,variables:Union[list,dict])->float:
+    def simulate(self,variables:Union[list,dict]=None)->float:
         if isinstance(variables,Variables):
             variables = variables.store
         if isinstance(variables,dict):
@@ -212,6 +212,8 @@ class TCCBraket:
                 v.update(variables)
             tvars: list = deepcopy(self.BK.total_variables)
             variables:list = [map_variables(x,v) for x in tvars]
+        if variables is None:
+            return self.BK.expval(hamiltonian=self.operator)
         return self.BK.expval(angles=[-0.5*i for i in variables],hamiltonian=self.operator)
 
     def extract_variables(self) -> list:
