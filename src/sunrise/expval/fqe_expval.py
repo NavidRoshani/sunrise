@@ -89,7 +89,9 @@ class FQEBraKet:
             kwargs.pop("bra")
 
         molecule_flag = False
-        if "molecule" in kwargs:
+        if mol is not None:
+            molecule_flag = True
+        elif "molecule" in kwargs:
             mol = kwargs["molecule"]
             kwargs.pop("molecule")
             molecule_flag = True
@@ -129,7 +131,7 @@ class FQEBraKet:
 
         operator_flag_h = False
         operator_flag_custom = False
-        if 'H' is kwargs and kwargs['H'] is not None:
+        if 'H' in kwargs and kwargs['H'] is not None:
             if 'operator' in kwargs and kwargs['operator'] is not None:
                 raise TequilaException('Two operators provided?')
             kwargs['operator'] = kwargs['H']
@@ -295,7 +297,7 @@ class FQEBraKet:
         if isinstance(internal_variables, Variables):
             pass
         else:
-            if type(internal_variables) is not dict:
+            if type(internal_variables) is not dict and internal_variables is not None::
                     internal_variables = {parameter_map[i]: internal_variables[i] for i in range(len(internal_variables))}
             internal_variables = tq.format_variable_dictionary(internal_variables)
 
@@ -552,10 +554,8 @@ def init_state_from_wavefunction(wvf:QubitWaveFunction, n_orb:int, bin_dict:dict
 
     indices=[]
     values=[]
-    for idx, i in enumerate(wvf._state): #todo check if reversed is always needed
-        if abs(i) > 1e-3: #todo check num of ones somewhere
-            vec = (bin(idx)[2:])
-
+    for idx, i in enumerate(wvf._state):
+        if abs(i) > 1e-3:
             if len(vec) < n_orb:
                 vec = '0'*(n_orb-len(vec))+vec
             if len(vec) > n_orb:
