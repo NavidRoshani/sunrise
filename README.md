@@ -309,4 +309,4 @@ U = circuit.construct_circuit()
 U += tq.gates.X(1)
 print(U)
 ```
-  
+     
