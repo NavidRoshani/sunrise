@@ -297,7 +297,7 @@ class FQEBraKet:
         if isinstance(internal_variables, Variables):
             pass
         else:
-            if type(internal_variables) is not dict and internal_variables is not None::
+            if type(internal_variables) is not dict and internal_variables is not None:
                     internal_variables = {parameter_map[i]: internal_variables[i] for i in range(len(internal_variables))}
             internal_variables = tq.format_variable_dictionary(internal_variables)
 
