@@ -1,0 +1,39 @@
+import tequila as tq
+import numpy as np
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from entropy_utils_qubit import *
+
+# canonical orbitals
+mol = tq.Molecule("H 0 0 0\nH 0 0 0.7", "sto-3g")
+# print(mol.integral_manager.orbital_coefficients)
+H = mol.make_hamiltonian()
+U = mol.prepare_reference()
+print("canonical orbitals")
+print(tq.simulate(U))
+
+print("I_01:", mutual_info_2ordm(mol, U, orb_a=[0,1], orb_b=[2,3]))
+print("E_0:", pure_state_entanglement(mol, U, orb_a=[0,1]))
+print("E_1:", pure_state_entanglement(mol, U, orb_a=[2,3]))
+print()
+
+# localized orbitals
+mol = mol.use_native_orbitals()
+H = mol.make_hamiltonian()
+U = mol.make_ansatz(name="SPA", edges=[(0,1)])
+guess = np.eye(2)
+guess[0] = [1.0, 1.0]
+guess[1] = [1.0, -1.]
+opt = tq.chemistry.optimize_orbitals(mol, circuit=U, initial_guess=guess.T, silent=True)
+UR = mol.get_givens_circuit(opt.mo_coeff)
+U += UR.dagger()
+E = tq.ExpectationValue(U,H)
+result = tq.minimize(E, silent=True)
+U = U.map_variables(result.variables)
+print("localized orbitals")
+print(tq.simulate(U))
+
+print("I_01:", mutual_info_2ordm(mol, U, orb_a=[0,1], orb_b=[2,3]))
+print("E_0:", pure_state_entanglement(mol, U, orb_a=[0,1]))
+print("E_1:", pure_state_entanglement(mol, U, orb_a=[2,3]))
