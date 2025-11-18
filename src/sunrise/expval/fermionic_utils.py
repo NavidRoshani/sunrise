@@ -68,7 +68,10 @@ def make_excitation_generator_op(indices: typing.Iterable[typing.Tuple[int, int]
         ofi += [(int(pair[0]), 1),
                 (int(pair[1]), 0)]  # openfermion does not take other types of integers like numpy.int64
         dag += [(int(pair[0]), 0), (int(pair[1]), 1)]
-
+        if pair[0] == pair[1]:
+            number_op = True
+        else: 
+            number_op = False
     op = openfermion.FermionOperator(tuple(ofi), -1.j)  # 1j makes it hermitian
     op += openfermion.FermionOperator(tuple(reversed(dag)), 1.j)
 
@@ -108,6 +111,10 @@ def make_excitation_generator_op(indices: typing.Iterable[typing.Tuple[int, int]
         else:
             raise TequilaException(
                 "Unknown generator form {}, supported are G, P+, P-, G+, G- and P0".format(form))
+    
+    if number_op:
+        op = openfermion.FermionOperator(tuple(ofi), 1)
+      
     return op
 
 
