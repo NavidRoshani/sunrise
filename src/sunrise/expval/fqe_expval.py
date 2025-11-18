@@ -556,6 +556,7 @@ def init_state_from_wavefunction(wvf:QubitWaveFunction, n_orb:int, bin_dict:dict
     values=[]
     for idx, i in enumerate(wvf._state):
         if abs(i) > 1e-3:
+            vec = (bin(idx)[2:])
             if len(vec) < n_orb:
                 vec = '0'*(n_orb-len(vec))+vec
             if len(vec) > n_orb:
