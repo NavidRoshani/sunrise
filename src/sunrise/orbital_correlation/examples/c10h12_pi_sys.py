@@ -79,4 +79,4 @@ pairs = [(orbs[i], orbs[j]) for i in range(len(orbs)) for j in range(i + 1, len(
 
 for pair in pairs:
     print(pair[0],pair[1])
-    print(f"I({pair[0],pair[1]}) = {mutual_info_2ordm(mol, U, pair[0], pair[1])}")
+    print(f"I({pair[0],pair[1]}) = {mutual_info_2ordm(mol, U, orb_a=pair[0], orb_b=pair[1])}")
