@@ -6,7 +6,7 @@ import math
 
 class input_state:
     """
-    Wrapper class to hold the input state to measure the molecule Hamiltonian
+    Wrapper class to hold the input state to measure the operators
     The input state can be a quantum circuit or a wavefunction
     """
     circuit = None
@@ -49,10 +49,18 @@ class input_state:
 # elif circuit is None and initial_state is None:
 #     raise ValueError("Either a circuit or a wavefunction must be provided")
 
-def compute_one_orb_rdm(mol, circuit, one_orb=[0,1]):
+def compute_one_orb_rdm(mol, circuit=None, variables=None, initial_state=None, one_orb=[0,1]):
 
     assert len(one_orb)==2, "one_orb must contain only two spin-orbitals"
     assert one_orb[1]==one_orb[0]+1, "spin-orbitals must be adjacent"
+
+    # Initialize the input state in a wrapper class
+    state = input_state(circuit=circuit, variables=variables, wavefunction=initial_state)
+    if initial_state is not None and circuit is None:
+        circuit = state.get_circuit()
+        initial_state = state.get_wavefunction()
+    elif circuit is None and initial_state is None:
+        raise ValueError("Either a circuit or a wavefunction must be provided")
 
     ops = {
         "vacuum": tq.paulis.I(),
@@ -101,14 +109,23 @@ def compute_one_orb_rdm(mol, circuit, one_orb=[0,1]):
                 P = op_i * (1-ops["n_pu"])*(1-ops["n_pd"]) * op_j
 
                 if P.is_hermitian():
-                    rho[i][j] = tq.simulate(tq.ExpectationValue(circuit,P))
+                    rho[i][j] = tq.simulate(tq.ExpectationValue(circuit,P), variables=variables, initial_state=initial_state)
                 else:
                     P_herm, P_non_herm = P.split()
-                    rho[i][j] = tq.simulate(tq.ExpectationValue(circuit,P_herm)) + tq.simulate(tq.ExpectationValue(circuit,-1j * P_non_herm))
+                    rho[i][j] = tq.simulate(tq.ExpectationValue(circuit,P_herm), variables=variables, initial_state=initial_state) + \
+                        tq.simulate(tq.ExpectationValue(circuit,-1j * P_non_herm), variables=variables, initial_state=initial_state)
 
     return rho
 
-def compute_two_orb_rdm(mol, circuit, p_orb=[0,1], q_orb=[2,3], PSSR=False, NSSR=False):
+def compute_two_orb_rdm(mol, circuit=None, variables=None, initial_state=None, p_orb=[0,1], q_orb=[2,3], PSSR=False, NSSR=False):
+
+    # Initialize the input state in a wrapper class
+    state = input_state(circuit=circuit, variables=variables, wavefunction=initial_state)
+    if initial_state is not None and circuit is None:
+        circuit = state.get_circuit()
+        initial_state = state.get_wavefunction()
+    elif circuit is None and initial_state is None:
+        raise ValueError("Either a circuit or a wavefunction must be provided")
 
     assert len(p_orb)==2, "one_orb must contain only two spin-orbitals"
     assert p_orb[1]==p_orb[0]+1, "spin-orbitals must be adjacent"
@@ -194,10 +211,11 @@ def compute_two_orb_rdm(mol, circuit, p_orb=[0,1], q_orb=[2,3], PSSR=False, NSSR
 
                 P = op_i * (1-ops["n_pu"])*(1-ops["n_pd"])*(1-ops["n_qu"])*(1-ops["n_qd"]) * op_j
                 if P.is_hermitian():
-                    rho[i][j] = tq.simulate(tq.ExpectationValue(circuit,P))
+                    rho[i][j] = tq.simulate(tq.ExpectationValue(circuit,P), variables=variables, initial_state=initial_state)
                 else:
                     P_herm, P_non_herm = P.split()
-                    rho[i][j] = tq.simulate(tq.ExpectationValue(circuit,P_herm)) + tq.simulate(tq.ExpectationValue(circuit,-1j * P_non_herm))
+                    rho[i][j] = tq.simulate(tq.ExpectationValue(circuit,P_herm), variables=variables, initial_state=initial_state) + \
+                        tq.simulate(tq.ExpectationValue(circuit,-1j * P_non_herm), variables=variables, initial_state=initial_state)
 
     return rho
 
@@ -297,21 +315,21 @@ def quantum_relative_entropy(rho, sigma):
 #     # return I*0.5 # there might be a 0.5 depending to convention
 #     return I
 
-def mutual_info_2ordm(mol, circuit, orb_a=[0,1], orb_b=[2,3], PSSR=False, NSSR=False):
-    rho_a = compute_one_orb_rdm(mol, circuit, orb_a)
+def mutual_info_2ordm(mol, circuit=None, variables=None, initial_state=None, orb_a=[0,1], orb_b=[2,3], PSSR=False, NSSR=False):
+    rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
     # print(rho_a)
     S_a = quantum_entropy(rho_a)
-    rho_b = compute_one_orb_rdm(mol, circuit, orb_b)
+    rho_b = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_b)
     S_b = quantum_entropy(rho_b)
-    rho_ab = compute_two_orb_rdm(mol, circuit, p_orb=orb_a, q_orb=orb_b, PSSR=PSSR, NSSR=NSSR)
+    rho_ab = compute_two_orb_rdm(mol, circuit, variables, initial_state, p_orb=orb_a, q_orb=orb_b, PSSR=PSSR, NSSR=NSSR)
     S_ab = quantum_entropy(rho_ab)
 
     # return 0.5 * (S_a + S_b - S_ab) # there might be a 0.5 depending to convention
     return S_a + S_b - S_ab
 
-def mutual_info_1ordm(mol, circuit, orb_a=[0,1], orb_b=[2,3], PSSR=False, NSSR=False): # TODO: orb_b is not necessary because I'm using only orb_a
-    rho_a = compute_one_orb_rdm(mol, circuit, orb_a)
-    rho_b = compute_one_orb_rdm(mol, circuit, orb_b)
+def mutual_info_1ordm(mol, circuit=None, variables=None, initial_state=None, orb_a=[0,1], orb_b=[2,3], PSSR=False, NSSR=False): # TODO: orb_b is not necessary because I'm using only orb_a
+    rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
+    rho_b = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_b)
     if PSSR==True:
         rho_a_evals, rho_a_evecs = eigh(rho_a)
         I = (rho_a_evals[0]+rho_a_evals[3])*np.log(rho_a_evals[0]+rho_a_evals[3]) + \
@@ -331,13 +349,13 @@ def mutual_info_1ordm(mol, circuit, orb_a=[0,1], orb_b=[2,3], PSSR=False, NSSR=F
         # rho_ab = compute_two_orb_rdm(mol, circuit, p_orb=orb_a, q_orb=orb_b, PSSR=PSSR, NSSR=NSSR)
         # S_ab = quantum_entropy(rho_ab)
         # I = S_a + S_b - S_ab
-        I = 2*pure_state_entanglement(mol, circuit, orb_a=orb_a, orb_b=orb_b)
+        I = 2*pure_state_entanglement(mol, circuit, variables, initial_state, orb_a=orb_a, orb_b=orb_b)
 
     return I
 
-def pure_state_entanglement(mol, circuit, orb_a=[0,1], orb_b=[2,3], PSSR=False, NSSR=False):
-    rho_a = compute_one_orb_rdm(mol, circuit, orb_a)
-    rho_b = compute_one_orb_rdm(mol, circuit, orb_b)
+def pure_state_entanglement(mol, circuit=None, variables=None, initial_state=None, orb_a=[0,1], orb_b=[2,3], PSSR=False, NSSR=False):
+    rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
+    rho_b = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_b)
     if PSSR==True:
         rho_a_evals, rho_a_evecs = eigh(rho_a)
         # Eq.(29) https://doi.org/10.1021/acs.jctc.0c00559
