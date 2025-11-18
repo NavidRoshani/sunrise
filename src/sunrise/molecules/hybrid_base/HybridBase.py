@@ -1864,3 +1864,8 @@ class HybridBase(qc_base):
             strip_orbitals = not self.integral_manager.active_space_is_trivial()
         return self.graph().get_orbital_coefficient_matrix(strip_orbitals=strip_orbitals)
 
+    def get_spa_edges_and_guess(self,collapse:bool=True,strip_orbitals:bool=None):
+        if strip_orbitals  is None:
+            strip_orbitals = not self.integral_manager.active_space_is_trivial()
+        g = self.graph()
+        return g.get_spa_edges(collapse=collapse,strip_orbitals=strip_orbitals),g.get_orbital_coefficient_matrix(strip_orbitals=strip_orbitals)

@@ -598,7 +598,7 @@ class FCircuit:
                 elif gate.name in ['UC', 'FermionicExcitation', 'GenericFermionic']:
                     res += molecule.make_excitation_gate(indices=gate.indices[0],angle=gate.variables)#TODO: Control
                 elif gate.name == 'Ph':
-                    res +=  Phase(target=(gate.indices[0][0]//2)+(gate.indices[0][0]//molecule.n_orbitals)*molecule.n_orbitals,angle=gate.variables)  #TODO: Control
+                    res +=  Phase(target=(gate.indices[0][0][0]),angle=gate.variables)  #TODO: Control
                 else:
                     raise TequilaException(f'Gate {gate} not idenified')
             return res
