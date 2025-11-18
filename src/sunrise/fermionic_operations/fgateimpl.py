@@ -162,8 +162,8 @@ class UCImpl(FGateImpl):
         self._name = 'UC'
     
 class PhaseImpl(FGateImpl):
-    def __init__(self,i, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None):
-        super().__init__([[(i,i)]], variables, False)
+    def __init__(self,i, variables:typing.Union[typing.Hashable, numbers.Real, Variable, FixedVariable]|None=None, reordered:bool=False):
+        super().__init__([[(i,i)]], variables, reordered)
         self._name = 'Ph'
 
     def __str__(self):
