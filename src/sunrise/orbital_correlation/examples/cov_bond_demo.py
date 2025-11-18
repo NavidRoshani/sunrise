@@ -1,6 +1,9 @@
 # From https://iopscience.iop.org/article/10.1088/2058-9565/aca4ee/meta
 import tequila as tq
 import numpy as np
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from entropy_utils_qubit import *
 
 ### Prove Eq.36 and Table 2
