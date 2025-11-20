@@ -1,10 +1,14 @@
 import tequila as tq
+from tequila import QCircuit,QubitWaveFunction,QubitHamiltonian
+from tequila.objective.objective import Variables
+from tequila.quantumchemistry.qc_base import QuantumChemistryBase as tqMolecule
 import numpy as np
 from scipy.linalg import logm, eigh
 import itertools
 import math
+from typing import List,Tuple,Union
 
-class input_state:
+class Input_State:
     """
     Wrapper class to hold the input state to measure the operators
     The input state can be a quantum circuit or a wavefunction
@@ -49,13 +53,13 @@ class input_state:
 # elif circuit is None and initial_state is None:
 #     raise ValueError("Either a circuit or a wavefunction must be provided")
 
-def compute_one_orb_rdm(mol, circuit=None, variables=None, initial_state=None, one_orb=[0,1]):
+def compute_one_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, one_orb:List[int]=[0,1])->np.ndarray:
 
     assert len(one_orb)==2, "one_orb must contain only two spin-orbitals"
     assert one_orb[1]==one_orb[0]+1, "spin-orbitals must be adjacent"
 
     # Initialize the input state in a wrapper class
-    state = input_state(circuit=circuit, variables=variables, wavefunction=initial_state)
+    state = Input_State(circuit=circuit, variables=variables, wavefunction=initial_state)
     if initial_state is not None and circuit is None:
         circuit = state.get_circuit()
         initial_state = state.get_wavefunction()
@@ -117,10 +121,10 @@ def compute_one_orb_rdm(mol, circuit=None, variables=None, initial_state=None, o
 
     return rho
 
-def compute_two_orb_rdm(mol, circuit=None, variables=None, initial_state=None, p_orb=[0,1], q_orb=[2,3], PSSR=False, NSSR=False):
+def compute_two_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, p_orb:List[int]=[0,1], q_orb:List[int]=[2,3], PSSR:bool=False, NSSR:bool=False)->np.ndarray:
 
     # Initialize the input state in a wrapper class
-    state = input_state(circuit=circuit, variables=variables, wavefunction=initial_state)
+    state = Input_State(circuit=circuit, variables=variables, wavefunction=initial_state)
     if initial_state is not None and circuit is None:
         circuit = state.get_circuit()
         initial_state = state.get_wavefunction()
@@ -220,7 +224,7 @@ def compute_two_orb_rdm(mol, circuit=None, variables=None, initial_state=None, p
     return rho
 
 # Quantum entropy S(rho)
-def quantum_entropy(rho):
+def quantum_entropy(rho:np.ndarray)->float:
     """
     Compute the quantum entropy S(rho).
 
@@ -254,7 +258,7 @@ def quantum_entropy(rho):
     return entropy
 
 # Quantum relative entropy S(rho||sigma)
-def quantum_relative_entropy(rho, sigma):
+def quantum_relative_entropy(rho:np.ndarray, sigma:np.ndarray)->float:
     """
     Compute the quantum relative entropy S(rho || sigma).
 
@@ -315,7 +319,7 @@ def quantum_relative_entropy(rho, sigma):
 #     # return I*0.5 # there might be a 0.5 depending to convention
 #     return I
 
-def mutual_info_2ordm(mol, circuit=None, variables=None, initial_state=None, orb_a=[0,1], orb_b=[2,3], PSSR=False, NSSR=False):
+def mutual_info_2ordm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:List[int]=[0,1], orb_b:List[int]=[2,3], PSSR:bool=False, NSSR:bool=False)->float:
     rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
     # print(rho_a)
     S_a = quantum_entropy(rho_a)
@@ -327,16 +331,16 @@ def mutual_info_2ordm(mol, circuit=None, variables=None, initial_state=None, orb
     # return 0.5 * (S_a + S_b - S_ab) # there might be a 0.5 depending to convention
     return S_a + S_b - S_ab
 
-def mutual_info_1ordm(mol, circuit=None, variables=None, initial_state=None, orb_a=[0,1], orb_b=[2,3], PSSR=False, NSSR=False): # TODO: orb_b is not necessary because I'm using only orb_a
+def mutual_info_1ordm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:List[int]=[0,1], orb_b:List[int]=[2,3], PSSR:bool=False, NSSR:bool=False): # TODO: orb_b is not necessary because I'm using only orb_a
     rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
     rho_b = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_b)
-    if PSSR==True:
+    if PSSR:
         rho_a_evals, rho_a_evecs = eigh(rho_a)
         I = (rho_a_evals[0]+rho_a_evals[3])*np.log(rho_a_evals[0]+rho_a_evals[3]) + \
             (rho_a_evals[1]+rho_a_evals[2])*np.log(rho_a_evals[1]+rho_a_evals[2]) - \
             2*(rho_a_evals[0]*np.log(rho_a_evals[0])+rho_a_evals[1]*np.log(rho_a_evals[1])+\
                rho_a_evals[2]*np.log(rho_a_evals[2])+rho_a_evals[3]*np.log(rho_a_evals[3]))
-    elif NSSR==True:
+    elif NSSR:
         rho_a_evals, rho_a_evecs = eigh(rho_a)
         I = rho_a_evals[0]*np.log(rho_a_evals[0]) + \
             (rho_a_evals[1]+rho_a_evals[2])*np.log(rho_a_evals[1]+rho_a_evals[2]) + \
@@ -353,7 +357,7 @@ def mutual_info_1ordm(mol, circuit=None, variables=None, initial_state=None, orb
 
     return I
 
-def pure_state_entanglement(mol, circuit=None, variables=None, initial_state=None, orb_a=[0,1], orb_b=[2,3], PSSR=False, NSSR=False):
+def pure_state_entanglement(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:List[int]=[0,1], orb_b:List[int]=[2,3], PSSR:bool=False, NSSR:bool=False)->float:
     rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
     rho_b = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_b)
     if PSSR==True:
@@ -376,7 +380,7 @@ def pure_state_entanglement(mol, circuit=None, variables=None, initial_state=Non
 
     return E
 
-def full_trace_projectors(projector, n_qubits=None):
+def full_trace_projectors(projector:QubitHamiltonian, n_qubits:int=None)->list:
 
     # n_qubits refers to the number of qubits of the reduced density matrix
     zero = tq.QubitWaveFunction.from_string('|0>')
@@ -406,7 +410,7 @@ def full_trace_projectors(projector, n_qubits=None):
             traced_qubits = projector.qubits
     return traced_pjs
 
-def part_trace_projectors(projector, reduced_qubits_list, projector_qubits=None):
+def part_trace_projectors(projector:QubitHamiltonian, reduced_qubits_list:List[int], projector_qubits:bool=None)->list:
     """
     reduced_qubits_list:
         is a list of lists with the qubits that we want to keep in our reduced density matrix,
@@ -444,7 +448,7 @@ def part_trace_projectors(projector, reduced_qubits_list, projector_qubits=None)
         
     return traced_pjs
 
-def np_density_matrix(rho, n_qubits=None):
+def np_density_matrix(rho:Union[np.ndarray,QubitHamiltonian], n_qubits:int=None)->np.ndarray:
 
     if isinstance(rho,np.ndarray):
         rho_matrix = rho
@@ -458,7 +462,7 @@ def np_density_matrix(rho, n_qubits=None):
 
     return rho_matrix
 
-def product_state_density(n_qubits):
+def product_state_density(n_qubits:int)->QubitHamiltonian:
 
     sigma = 0.5 * tq.paulis.I()
     for i in range(1,n_qubits):
@@ -466,7 +470,7 @@ def product_state_density(n_qubits):
 
     return sigma
 
-def pauli_decomposition(matrix):
+def pauli_decomposition(matrix:np.ndarray)->Tuple[QubitHamiltonian,QubitHamiltonian]:
     n_qubits = np.ceil(np.log2(max(matrix.shape)))
     n_qubits = int(n_qubits)
 

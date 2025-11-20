@@ -1,9 +1,6 @@
 import tequila as tq
 import numpy as np
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from entropy_utils_qubit import *
+from sunrise.orbital_correlation.entropy_utils_qubit import *
 
 # canonical orbitals
 mol = tq.Molecule("H 0 0 0\nH 0 0 0.7", "sto-3g")
