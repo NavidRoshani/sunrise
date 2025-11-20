@@ -255,10 +255,10 @@ class TCCBraket:
                 if braket.is_diagonal: 
                     k = deepcopy(braket.ket)
                     v = deepcopy(braket.params_ket)
-                    braket.bra = k
-                    braket.variables_bra = v
+                    braket.bra = deepcopy(k)
+                    braket.variables_bra = deepcopy(v)
                     idx = k.index(exct)
-                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Union[Variable,FixedVariable]) else 1.
+                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Union[FixedVariable,Number,Variable]) else 1
                     v[idx] +=  s[ket]*pi/2 
                     for p in reversed(p0):
                         k.insert(idx,[p])
@@ -271,7 +271,7 @@ class TCCBraket:
                     if exct not in k:
                         return 0.
                     idx = k.index(exct)
-                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
+                    ph = tq_grad(1*v[idx],variable) if not isinstance(v[idx],Union[FixedVariable,Number,Variable]) else 1
                     v[idx] +=  s[ket]*pi/2
                     for p in reversed(p0):
                         k.insert(idx,[p])
@@ -283,7 +283,7 @@ class TCCBraket:
                     k = deepcopy(braket.ket)
                     v = deepcopy(braket.params_ket)
                     idx = k.index(exct)
-                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
+                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Union[FixedVariable,Number,Variable]) else 1
                     v[idx] +=  s[ket]*pi/2 
                     for p in reversed(p0):
                         k.insert(idx,[p])
@@ -296,7 +296,7 @@ class TCCBraket:
                     if exct not in k:
                         return 0.
                     idx = k.index(exct)
-                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Variable) else 1.
+                    ph = tq_grad(v[idx],variable) if not isinstance(v[idx],Union[FixedVariable,Number,Variable]) else 1
                     v[idx] +=  s[ket]*pi/2
                     for p in reversed(p0):
                         k.insert(idx,[p])
@@ -407,8 +407,8 @@ class TCCBraket:
         bar:dict = deepcopy(self.BK.var_to_param_bra)
         if bar is not None:
             for i in bar.keys(): #Here to tequila
-                if isinstance(bar[i],Number):
-                    bar[i] = assign_variable(2*(bar[i]))
+                if isinstance(bar[i],(Number,FixedVariable)):
+                    bar[i] = assign_variable(-2*(bar[i]))
         return bar 
     
     @property
@@ -416,7 +416,7 @@ class TCCBraket:
         """TCC Circuit Bra parameters (values after minimization or variables name)."""
         if self.variables_bra is None: return []
         d = {v: k for k, v in self.variables_bra.items()}
-        return [d[assign_variable(2*v)] if isinstance(v,FixedVariable) else d[v] for v in self.BK.params_bra]
+        return [assign_variable(-2*v) if isinstance(v,(Number,FixedVariable)) else d[assign_variable(v)] for v in self.BK.params_bra]
     
     @variables_bra.setter
     def variables_bra(self, variables_bra):
@@ -424,8 +424,8 @@ class TCCBraket:
         See TCC variables
         '''
         for idx,i in enumerate(variables_bra):
-            if isinstance(assign_variable(i),FixedVariable):
-                variables_bra[idx]=assign_variable(0.5*i)
+            if isinstance(assign_variable(i),(Number, FixedVariable)):
+                variables_bra[idx]=assign_variable(-0.5*(i%(2*pi)))
         self.BK.params_bra = variables_bra
 
     @property
@@ -434,15 +434,15 @@ class TCCBraket:
         bar = deepcopy(self.BK.var_to_param_ket)
         if bar is not None:
             for i in bar.keys(): #to tequila
-                if isinstance(bar[i],Number):
-                    bar[i] = assign_variable(2*(bar[i]))
+                if isinstance(bar[i],(Number,FixedVariable)):
+                    bar[i] = assign_variable(-2*(bar[i]))
         return bar
     
     @property
     def params_ket(self):
         """TCC Circuit Ket parameters (values after minimization or variables name)."""
         d = {v: k for k, v in self.variables_ket.items()}
-        return [d[assign_variable(2*v)] if isinstance(v,FixedVariable) else d[v] for v in self.BK.params_ket]
+        return [assign_variable(-2*v) if isinstance(v,(Number,FixedVariable)) else d[assign_variable(v)] for v in self.BK.params_ket]
     
     @variables_ket.setter
     def variables_ket(self, variables_ket):
@@ -450,8 +450,8 @@ class TCCBraket:
         See TCC variables
         '''
         for idx,i in enumerate(variables_ket):
-            if isinstance(assign_variable(i),FixedVariable):
-                variables_ket[idx]=assign_variable(0.5*i)
+            if isinstance(assign_variable(i),(Number, FixedVariable)):
+                variables_ket[idx]=assign_variable(-0.5*(i%(2*pi)))
         self.BK.params_ket = variables_ket
     
     @property
@@ -460,8 +460,8 @@ class TCCBraket:
         bar:dict = deepcopy(self.BK.var_to_param)
         if bar is not None:
             for i in bar.keys(): #Here to tequila 
-                if isinstance(bar[i],Number):
-                    bar[i] = assign_variable(2*bar[i])
+                if isinstance(bar[i],(Number, FixedVariable)):
+                    bar[i] = assign_variable(-2*bar[i])
         return bar 
     
     @property
@@ -476,8 +476,8 @@ class TCCBraket:
     def variables(self, variables):
         """Tequila circuit variables."""
         for idx,i in enumerate(variables):
-            if isinstance(assign_variable(i),FixedVariable):
-                variables[idx]=assign_variable(0.5*i)
+            if isinstance(assign_variable(i),(Number, FixedVariable)):
+                variables[idx]=assign_variable(-0.5*(i%(2*pi)))
         self.BK.params = variables
 
     @property

@@ -24,7 +24,7 @@ def n_rotation(i:int, phi)->fe.FCircuit:
         circuit += fe.Phase(2*i+1, variables=-2 * phi)
         return circuit
 
-def get_givens_circuit(unitary:numpy.ndarray, tol:float=1e-12, ordering:Union[list,tuple,str]=OPTIMIZED_ORDERING)->fe.FCircuit:
+def get_givens_circuit(unitary:numpy.ndarray, tol:float=1e-6, ordering:Union[list,tuple,str]=OPTIMIZED_ORDERING)->fe.FCircuit:
     """
     Constructs a quantum circuit from a given real unitary matrix using Givens rotations.
 
@@ -55,7 +55,7 @@ def get_givens_circuit(unitary:numpy.ndarray, tol:float=1e-12, ordering:Union[li
     for theta in reversed(theta_list):
         if  isinstance(theta[0],numbers.Number) and abs(theta[0])%numpy.pi<tol:
                 continue
-        circuit += fe.UR(theta[1], theta[2], theta[0] * 2)
+        circuit += fe.UR(theta[2], theta[1], theta[0] * -2)
     return circuit
 
 def givens_matrix(n, p, q, theta)->QTensor:
