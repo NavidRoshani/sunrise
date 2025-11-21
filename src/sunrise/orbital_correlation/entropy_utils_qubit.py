@@ -53,10 +53,7 @@ class Input_State:
 # elif circuit is None and initial_state is None:
 #     raise ValueError("Either a circuit or a wavefunction must be provided")
 
-def compute_one_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, one_orb:List[int]=[0,1])->np.ndarray:
-
-    assert len(one_orb)==2, "one_orb must contain only two spin-orbitals"
-    assert one_orb[1]==one_orb[0]+1, "spin-orbitals must be adjacent"
+def compute_one_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, one_orb:int=0)->np.ndarray:
 
     # Initialize the input state in a wrapper class
     state = Input_State(circuit=circuit, variables=variables, wavefunction=initial_state)
@@ -65,15 +62,16 @@ def compute_one_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variabl
         initial_state = state.get_wavefunction()
     elif circuit is None and initial_state is None:
         raise ValueError("Either a circuit or a wavefunction must be provided")
-
+    up = mol.transformation.up(one_orb)
+    down = mol.transformation.down(one_orb)
     ops = {
         "vacuum": tq.paulis.I(),
-        "a_pu_dag": mol.make_creation_op(one_orb[0]),
-        "a_pu": mol.make_annihilation_op(one_orb[0]),
-        "n_pu": mol.make_number_op(one_orb[0]),
-        "a_pd_dag": mol.make_creation_op(one_orb[1]),
-        "a_pd": mol.make_annihilation_op(one_orb[1]),
-        "n_pd": mol.make_number_op(one_orb[1])
+        "a_pu_dag": mol.make_creation_op(up),
+        "a_pu": mol.make_annihilation_op(up),
+        "n_pu": mol.make_number_op(up),
+        "a_pd_dag": mol.make_creation_op(down),
+        "a_pd": mol.make_annihilation_op(down),
+        "n_pd": mol.make_number_op(down)
         }
     
     row = [
@@ -96,7 +94,7 @@ def compute_one_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variabl
         col_ops.reverse()
         column.append(col_ops)
 
-    rho = np.zeros((len(one_orb)**2,len(one_orb)**2)) # 4x4 matrix
+    rho = np.zeros((4,4))
     for i,state_i in enumerate(row):
         for j,state_j in enumerate(column):
             if i==j: # Select only specific terms as in https://iopscience.iop.org/article/10.1088/2058-9565/aca4ee/meta Eq.(27) 
@@ -121,7 +119,7 @@ def compute_one_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variabl
 
     return rho
 
-def compute_two_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, p_orb:List[int]=[0,1], q_orb:List[int]=[2,3], PSSR:bool=False, NSSR:bool=False)->np.ndarray:
+def compute_two_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, p_orb:int=0, q_orb:int=1, PSSR:bool=False, NSSR:bool=False)->np.ndarray:
 
     # Initialize the input state in a wrapper class
     state = Input_State(circuit=circuit, variables=variables, wavefunction=initial_state)
@@ -130,26 +128,26 @@ def compute_two_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variabl
         initial_state = state.get_wavefunction()
     elif circuit is None and initial_state is None:
         raise ValueError("Either a circuit or a wavefunction must be provided")
-
-    assert len(p_orb)==2, "one_orb must contain only two spin-orbitals"
-    assert p_orb[1]==p_orb[0]+1, "spin-orbitals must be adjacent"
-    assert len(q_orb)==2, "one_orb must contain only two spin-orbitals"
-    assert q_orb[1]==q_orb[0]+1, "spin-orbitals must be adjacent"
+    
+    pup = mol.transformation.up(p_orb)
+    pdown = mol.transformation.down(p_orb)
+    qup = mol.transformation.up(q_orb)
+    qdown = mol.transformation.down(q_orb)
 
     ops = {
         "vacuum": tq.paulis.I(),
-        "a_pu_dag": mol.make_creation_op(p_orb[0]),
-        "a_pu": mol.make_annihilation_op(p_orb[0]),
-        "n_pu": mol.make_number_op(p_orb[0]),
-        "a_pd_dag": mol.make_creation_op(p_orb[1]),
-        "a_pd": mol.make_annihilation_op(p_orb[1]),
-        "n_pd": mol.make_number_op(p_orb[1]),
-        "a_qu_dag": mol.make_creation_op(q_orb[0]),
-        "a_qu": mol.make_annihilation_op(q_orb[0]),
-        "n_qu": mol.make_number_op(q_orb[0]),
-        "a_qd_dag": mol.make_creation_op(q_orb[1]),
-        "a_qd": mol.make_annihilation_op(q_orb[1]),
-        "n_qd": mol.make_number_op(q_orb[1])
+        "a_pu_dag": mol.make_creation_op(pup),
+        "a_pu": mol.make_annihilation_op(pup),
+        "n_pu": mol.make_number_op(pup),
+        "a_pd_dag": mol.make_creation_op(pdown),
+        "a_pd": mol.make_annihilation_op(pdown),
+        "n_pd": mol.make_number_op(pdown),
+        "a_qu_dag": mol.make_creation_op(qup),
+        "a_qu": mol.make_annihilation_op(qup),
+        "n_qu": mol.make_number_op(qup),
+        "a_qd_dag": mol.make_creation_op(qdown),
+        "a_qd": mol.make_annihilation_op(qdown),
+        "n_qd": mol.make_number_op(qdown)
     }
 
     # For row and column order refer to https://pubs.acs.org/doi/10.1021/acs.jctc.0c00559 Figure 4
@@ -177,7 +175,7 @@ def compute_two_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variabl
         col_ops.reverse()
         column.append(col_ops)
 
-    rho = np.zeros(((len(p_orb)*len(q_orb))**2,(len(p_orb)*len(q_orb))**2)) # 16x16 matrix
+    rho = np.zeros((16,16)) # 16x16 matrix
     for i,state_i in enumerate(row):
         for j,state_j in enumerate(column):
             if (i == j or 
@@ -319,19 +317,20 @@ def quantum_relative_entropy(rho:np.ndarray, sigma:np.ndarray)->float:
 #     # return I*0.5 # there might be a 0.5 depending to convention
 #     return I
 
-def mutual_info_2ordm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:List[int]=[0,1], orb_b:List[int]=[2,3], PSSR:bool=False, NSSR:bool=False)->float:
+def mutual_info_2ordm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:int=0, orb_b:int=1, PSSR:bool=False, NSSR:bool=False)->float:
     rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
     # print(rho_a)
     S_a = quantum_entropy(rho_a)
     rho_b = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_b)
     S_b = quantum_entropy(rho_b)
     rho_ab = compute_two_orb_rdm(mol, circuit, variables, initial_state, p_orb=orb_a, q_orb=orb_b, PSSR=PSSR, NSSR=NSSR)
+    # print(rho_ab)
     S_ab = quantum_entropy(rho_ab)
 
     # return 0.5 * (S_a + S_b - S_ab) # there might be a 0.5 depending to convention
     return S_a + S_b - S_ab
 
-def mutual_info_1ordm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:List[int]=[0,1], orb_b:List[int]=[2,3], PSSR:bool=False, NSSR:bool=False): # TODO: orb_b is not necessary because I'm using only orb_a
+def mutual_info_1ordm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:int=0, orb_b:int=1, PSSR:bool=False, NSSR:bool=False): # TODO: orb_b is not necessary because I'm using only orb_a
     rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
     rho_b = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_b)
     if PSSR:
@@ -357,7 +356,7 @@ def mutual_info_1ordm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables
 
     return I
 
-def pure_state_entanglement(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:List[int]=[0,1], orb_b:List[int]=[2,3], PSSR:bool=False, NSSR:bool=False)->float:
+def pure_state_entanglement(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:int=0, orb_b:int=1, PSSR:bool=False, NSSR:bool=False)->float:
     rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
     rho_b = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_b)
     if PSSR==True:

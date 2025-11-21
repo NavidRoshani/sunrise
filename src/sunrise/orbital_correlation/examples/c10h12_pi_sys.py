@@ -71,9 +71,6 @@ U = U.map_variables(variables)
 
 mol = sun.Molecule(geometry=geometry, basis_set='sto-3g', active_orbitals=[30,32,33,34,35,36,37,38,39,40], nature='t', transformation="reordered-jordan-wigner").use_native_orbitals()
 U = U.to_qcircuit(mol)
-orbs = [[i, i+1] for i in range(0, 19, 2)]
-pairs = [(orbs[i], orbs[j]) for i in range(len(orbs)) for j in range(i + 1, len(orbs))]
-
+pairs = [(i, j) for i in range(mol.n_orbitals) for j in range(i + 1, mol.n_orbitals)]
 for pair in pairs:
-    print(pair[0],pair[1])
     print(f"I({pair[0],pair[1]}) = {mutual_info_2ordm(mol, U, orb_a=pair[0], orb_b=pair[1])}")
