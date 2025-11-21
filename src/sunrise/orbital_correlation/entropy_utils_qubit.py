@@ -20,7 +20,7 @@ class Input_State:
     def __init__(self, circuit=None, variables=None, wavefunction=None):
         if circuit is None and wavefunction is None:
             raise ValueError("Either a circuit or a wavefunction must be provided")
-        if circuit is not None and wavefunction is not None:
+        if circuit is not None and wavefunction is not None and wavefunction != 0:
             raise ValueError("Only one of circuit or wavefunction must be provided")
         
         self.circuit = circuit
@@ -355,6 +355,22 @@ def mutual_info_1ordm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables
         I = 2*pure_state_entanglement(mol, circuit, variables, initial_state, orb_a=orb_a, orb_b=orb_b)
 
     return I
+
+def total_mutual_info(mol, circuit=None, variables=None, initial_state=0, orbs=[0,1], PSSR=False, NSSR=False):
+    """
+    Compute the mutual information between specified orbitals and the rest of the system.
+    """
+    one_entropies = []
+    for orb in orbs:
+        one_rdm = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb)
+        one_entropies.append(quantum_entropy(one_rdm))
+    one_entropy = sum(one_entropies)
+
+    state = tq.simulate(circuit, variables=variables, initial_state=initial_state)
+    rho = tq.paulis.Projector(state).to_matrix().real
+    system_entropy = quantum_entropy(rho)
+
+    return one_entropy - system_entropy
 
 def pure_state_entanglement(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:int=0, orb_b:int=1, PSSR:bool=False, NSSR:bool=False)->float:
     rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
