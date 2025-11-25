@@ -378,15 +378,15 @@ def pure_state_entanglement(mol:tqMolecule, circuit:QCircuit=None, variables:Var
     if PSSR==True:
         rho_a_evals, rho_a_evecs = eigh(rho_a)
         # Eq.(29) https://doi.org/10.1021/acs.jctc.0c00559
-        E = (rho_a_evals[0]+rho_a_evals[3])*np.log(rho_a_evals[0]+rho_a_evals[3]) + \
-            (rho_a_evals[1]+rho_a_evals[2])*np.log(rho_a_evals[1]+rho_a_evals[2]) - \
-            (rho_a_evals[0]*np.log(rho_a_evals[0])+rho_a_evals[1]*np.log(rho_a_evals[1])+\
-             rho_a_evals[2]*np.log(rho_a_evals[2])+rho_a_evals[3]*np.log(rho_a_evals[3]))
+        plnp = [(rho_a_evals[i]+rho_a_evals[-1-i])*np.log(rho_a_evals[i]+rho_a_evals[-1-i]) if not np.isclose(rho_a_evals[i]+rho_a_evals[-1-i], 0, atol=1.e-6) else 0.0 for i in range(len(rho_a_evals)//2)]
+        xlnx =[i * np.log(i) if not np.isclose(i, 0, atol=1.e-6) else 0.0 for i in rho_a_evals]
+        E = (plnp[0]+plnp[1] ) - (xlnx[0]+xlnx[1]+xlnx[2]+xlnx[3])
     elif NSSR==True:
         rho_a_evals, rho_a_evecs = eigh(rho_a)
         # Eq.(29) https://doi.org/10.1021/acs.jctc.0c00559
-        E = (rho_a_evals[1]+rho_a_evals[2])*np.log(rho_a_evals[1]+rho_a_evals[2]) - \
-            rho_a_evals[1]*np.log(rho_a_evals[1]) - rho_a_evals[2]*np.log(rho_a_evals[2])
+        xlnx =[i * np.log(i) if not np.isclose(i, 0, atol=1.e-6) else 0.0 for i in rho_a_evals]
+        E = (rho_a_evals[1]+rho_a_evals[2])*np.log(rho_a_evals[1]+rho_a_evals[2]) if not np.isclose(rho_a_evals[1]+rho_a_evals[2], 0, atol=1.e-6) else 0.0
+        E -= (xlnx[1] + xlnx[2])
     else:
         S_a = quantum_entropy(rho_a)
         S_b = quantum_entropy(rho_b)
