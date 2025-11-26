@@ -16,6 +16,15 @@ cd project-sunrise
 pip install -e .
 ```
 
+You can install `sunrise` directly with pip over:
+```bash
+pip install git+https://github.com/tequilahub/sunrise.git
+```
+Install from devel branch (most recent updates):
+```bash
+pip install git+https://github.com/tequilahub/sunrise.git@devel
+```
+
 ## Fermionic Backends
 To see the supported fermionic backends:
 ```python
