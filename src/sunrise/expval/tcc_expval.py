@@ -7,14 +7,14 @@ from tequila import grad as tq_grad
 from tequila.objective.objective import Variables,FixedVariable
 from tequila.quantumchemistry.chemistry_tools import NBodyTensor
 from tequila.quantumchemistry import qc_base
-from tequila.utils.bitstrings import BitString
+from tequila.utils.bitstrings import BitString, BitNumbering
 from numbers import Number
 from numpy import ceil,argwhere,pi,prod,eye,zeros,isclose,allclose
 from pyscf.gto import Mole
 from pyscf.scf import RHF
 from sunrise.expval.pyscf_molecule import from_tequila
 from copy import deepcopy
-from typing import Union,List,Tuple
+from typing import Union,List,Tuple,Callable
 from collections import defaultdict
 from openfermion import FermionOperator
 from openfermion.transforms import jordan_wigner
@@ -177,7 +177,7 @@ class TCCBraket:
         if 'name' in kwargs:
             self._name = kwargs['name']
         else: self._name = 'Expectation Value' if self.is_diagonal else "Transition Value"
-        if operator == 'I':
+        if isinstance(operator,str) and operator == 'I':
             self._name = 'Transition Element'
         if operator is not None:
             self.operator = self.build_operator(operator)
@@ -603,7 +603,7 @@ class TCCBraket:
         else:
             return len(self.BK.civector(params=[.0 for _ in range(self.BK.n_variables_ket)]))
 
-    def build_operator(self,operator:Union[str,FermionOperator,QubitHamiltonian]=None):
+    def build_operator(self,operator:Union[str,FermionOperator,QubitHamiltonian]=None)->Union[None,Callable]:
         '''
         Build the expectation value operator. 
         Even if it is accepted a QubitHamiltonian, we disencorage its use here since TCC works on fermionic states.
@@ -641,18 +641,16 @@ class TCCBraket:
         else:
             raise TequilaException(f"No operator {type(operator).__name__} supported")
         ci_vec = get_ci_strings(n_elec_s=self.BK.n_elec,n_qubits=2*len(self.BK.aslst),mode='fermion')
-        mop = zeros((len(ci_vec),len(ci_vec)))
-        ci_vec = [bin(i)[2:][::-1] for i in ci_vec]
-        ci_vec = [i+'0'*(2*len(self.BK.aslst)-len(i)) for i in ci_vec]
-        pos = {j:i for i,j in enumerate(ci_vec)}
-        for st in ci_vec:
-            win  = QubitWaveFunction.from_string(f'1|{st}>').apply_qubitoperator(operator)
-            for k in win._state.keys(): #IDEA on the current tequila implementation, QubitWaveFunction._state when applying operator is always a dict, if changes this needs to be updated
-                idk = bin(k)[2:].zfill(2*len(self.BK.aslst))
-                if idk in pos and not isclose(win._state[k].real,0.0):
-                    mop[pos[st],pos[idk]] = win._state[k].real
         self.BK.e_core = 0
-        return mop
+        def callable_operator(ci_vect:List[int],operator:QubitHamiltonian,n_qubits:int, ket:List[float])->List[float]:
+            hket = zeros(len(ci_vect))
+            wfv = QubitWaveFunction(n_qubits=n_qubits,numbering=BitNumbering.LSB,dense=True)
+            for idx,val in enumerate(ket):
+                wfv._state[ci_vect[idx]] = val
+            hket = wfv.apply_qubitoperator(operator)
+            hket = hket.to_array(out_numbering=BitNumbering.LSB)
+            return [hket[i].real for i in ci_vect]
+        return lambda ket: callable_operator(ci_vect=ci_vec,operator=operator,n_qubits=2*len(self.BK.aslst), ket=ket)
 
 def init_state_from_wavefunction(wvf:QubitWaveFunction):
     if not isinstance(wvf._state,dict):
