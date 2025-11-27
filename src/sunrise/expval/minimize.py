@@ -39,7 +39,7 @@ def grad(objective: Union[Objective, QTensor], variable: Variable = None, no_com
     return: dictionary of Objectives, if called on gate, circuit, exp.value, or objective; if Variable or Transform, returns number.
     """
     if type(objective).__name__ in  ['TCCBraket','FQEBraKet']:
-        objective = Objective([objective])
+        objective = Objective([objective],transformation=identity)
     elif type(objective).__name__ == 'TequilaBraket':
         objective = objective.build()
     if variable is None:
