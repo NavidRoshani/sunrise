@@ -44,14 +44,6 @@ class Input_State:
                 variables = self.variables
             self.wavefunction = tq.compile(self.circuit)(variables)
         return self.wavefunction
-    
-# # Initialize the input state in a wrapper class
-# state = input_state(circuit=circuit, variables=variables, wavefunction=initial_state)
-# if initial_state is not None and circuit is None:
-#     circuit = state.get_circuit()
-#     initial_state = state.get_wavefunction()
-# elif circuit is None and initial_state is None:
-#     raise ValueError("Either a circuit or a wavefunction must be provided")
 
 def compute_one_orb_rdm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, one_orb:int=0)->np.ndarray:
 
@@ -319,12 +311,10 @@ def quantum_relative_entropy(rho:np.ndarray, sigma:np.ndarray)->float:
 
 def mutual_info_2ordm(mol:tqMolecule, circuit:QCircuit=None, variables:Variables=None, initial_state:QubitWaveFunction=None, orb_a:int=0, orb_b:int=1, PSSR:bool=False, NSSR:bool=False)->float:
     rho_a = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_a)
-    # print(rho_a)
     S_a = quantum_entropy(rho_a)
     rho_b = compute_one_orb_rdm(mol, circuit, variables, initial_state, orb_b)
     S_b = quantum_entropy(rho_b)
     rho_ab = compute_two_orb_rdm(mol, circuit, variables, initial_state, p_orb=orb_a, q_orb=orb_b, PSSR=PSSR, NSSR=NSSR)
-    # print(rho_ab)
     S_ab = quantum_entropy(rho_ab)
 
     # return 0.5 * (S_a + S_b - S_ab) # there might be a 0.5 depending to convention
@@ -395,104 +385,104 @@ def pure_state_entanglement(mol:tqMolecule, circuit:QCircuit=None, variables:Var
 
     return E
 
-def full_trace_projectors(projector:QubitHamiltonian, n_qubits:int=None)->list:
+# def full_trace_projectors(projector:QubitHamiltonian, n_qubits:int=None)->list:
 
-    # n_qubits refers to the number of qubits of the reduced density matrix
-    zero = tq.QubitWaveFunction.from_string('|0>')
-    one = tq.QubitWaveFunction.from_string('|1>')
-    if n_qubits:
-        states = list(itertools.product([zero, one],repeat=n_qubits))
-        qubits = list(range(1,n_qubits+2))
-        traced_qubits = list(range(1,n_qubits+2))
-    else:
-        states = list(itertools.product([zero, one],repeat=projector.n_qubits-1))
-        qubits = projector.qubits
-        traced_qubits = projector.qubits
+#     # n_qubits refers to the number of qubits of the reduced density matrix
+#     zero = tq.QubitWaveFunction.from_string('|0>')
+#     one = tq.QubitWaveFunction.from_string('|1>')
+#     if n_qubits:
+#         states = list(itertools.product([zero, one],repeat=n_qubits))
+#         qubits = list(range(1,n_qubits+2))
+#         traced_qubits = list(range(1,n_qubits+2))
+#     else:
+#         states = list(itertools.product([zero, one],repeat=projector.n_qubits-1))
+#         qubits = projector.qubits
+#         traced_qubits = projector.qubits
 
-    traced_pjs = []
-    for qubit in qubits:
-        traced_qubits.remove(qubit)
+#     traced_pjs = []
+#     for qubit in qubits:
+#         traced_qubits.remove(qubit)
 
-        temp = []
-        for state in states:
-            temp.append(projector.trace_out_qubits(qubits=traced_qubits, states=state))
+#         temp = []
+#         for state in states:
+#             temp.append(projector.trace_out_qubits(qubits=traced_qubits, states=state))
 
-        temp = sum(temp)
-        traced_pjs.append(temp)
-        if n_qubits:
-            traced_qubits = list(range(1,n_qubits+2))
-        else:
-            traced_qubits = projector.qubits
-    return traced_pjs
+#         temp = sum(temp)
+#         traced_pjs.append(temp)
+#         if n_qubits:
+#             traced_qubits = list(range(1,n_qubits+2))
+#         else:
+#             traced_qubits = projector.qubits
+#     return traced_pjs
 
-def part_trace_projectors(projector:QubitHamiltonian, reduced_qubits_list:List[int], projector_qubits:bool=None)->list:
-    """
-    reduced_qubits_list:
-        is a list of lists with the qubits that we want to keep in our reduced density matrix,
-        if we have qubits [0,1,2,3] and we want to trace out [2,3] first and [0] second
-        then reduced_qubits_list will be: [[0,1],[1,2,3]]
+# def part_trace_projectors(projector:QubitHamiltonian, reduced_qubits_list:List[int], projector_qubits:bool=None)->list:
+#     """
+#     reduced_qubits_list:
+#         is a list of lists with the qubits that we want to keep in our reduced density matrix,
+#         if we have qubits [0,1,2,3] and we want to trace out [2,3] first and [0] second
+#         then reduced_qubits_list will be: [[0,1],[1,2,3]]
 
-    projector_qubits:
-        is the list of qubits on which the projector applies to,
-        this is needed only if the projector is a single I() operator,
-        for example a 4 qubit system will have: [0,1,2,3]
-    """
-    zero = tq.QubitWaveFunction.from_string('|0>')
-    one = tq.QubitWaveFunction.from_string('|1>')
+#     projector_qubits:
+#         is the list of qubits on which the projector applies to,
+#         this is needed only if the projector is a single I() operator,
+#         for example a 4 qubit system will have: [0,1,2,3]
+#     """
+#     zero = tq.QubitWaveFunction.from_string('|0>')
+#     one = tq.QubitWaveFunction.from_string('|1>')
 
-    if not projector_qubits:
-        projector_qubits = projector.qubits
+#     if not projector_qubits:
+#         projector_qubits = projector.qubits
 
-    traced_pjs = []
-    for reduced_qubits in reduced_qubits_list:
-        assert len(reduced_qubits) <= len(projector_qubits), "reduced_qubits must be less or equal than projector_qubits"
+#     traced_pjs = []
+#     for reduced_qubits in reduced_qubits_list:
+#         assert len(reduced_qubits) <= len(projector_qubits), "reduced_qubits must be less or equal than projector_qubits"
 
-        traced_qubits = [q for q in projector_qubits if q not in reduced_qubits]
+#         traced_qubits = [q for q in projector_qubits if q not in reduced_qubits]
 
-        states = list(itertools.product([zero, one], repeat=len(traced_qubits)))
+#         states = list(itertools.product([zero, one], repeat=len(traced_qubits)))
 
-        temp = []
-        for state in states:
-            temp.append(projector.trace_out_qubits(qubits=traced_qubits, states=state))
+#         temp = []
+#         for state in states:
+#             temp.append(projector.trace_out_qubits(qubits=traced_qubits, states=state))
         
-        temp = sum(temp)
-        traced_pjs.append(temp)
+#         temp = sum(temp)
+#         traced_pjs.append(temp)
 
-    if len(traced_pjs)==1:
-        traced_pjs = traced_pjs[0]
+#     if len(traced_pjs)==1:
+#         traced_pjs = traced_pjs[0]
         
-    return traced_pjs
+#     return traced_pjs
 
-def np_density_matrix(rho:Union[np.ndarray,QubitHamiltonian], n_qubits:int=None)->np.ndarray:
+# def np_density_matrix(rho:Union[np.ndarray,QubitHamiltonian], n_qubits:int=None)->np.ndarray:
 
-    if isinstance(rho,np.ndarray):
-        rho_matrix = rho
-        return rho_matrix
+#     if isinstance(rho,np.ndarray):
+#         rho_matrix = rho
+#         return rho_matrix
 
-    try:
-        rho_matrix = rho.to_matrix().real
-    except:
-        # in case the operator is tq.paulis.I() tequila cannot cast into a matrix
-        rho_matrix = list(rho.values())[0].real * np.eye(2**(n_qubits))
+#     try:
+#         rho_matrix = rho.to_matrix().real
+#     except:
+#         # in case the operator is tq.paulis.I() tequila cannot cast into a matrix
+#         rho_matrix = list(rho.values())[0].real * np.eye(2**(n_qubits))
 
-    return rho_matrix
+#     return rho_matrix
 
-def product_state_density(n_qubits:int)->QubitHamiltonian:
+# def product_state_density(n_qubits:int)->QubitHamiltonian:
 
-    sigma = 0.5 * tq.paulis.I()
-    for i in range(1,n_qubits):
-        sigma = np.kron(sigma, 0.5 * tq.paulis.I())
+#     sigma = 0.5 * tq.paulis.I()
+#     for i in range(1,n_qubits):
+#         sigma = np.kron(sigma, 0.5 * tq.paulis.I())
 
-    return sigma
+#     return sigma
 
-def pauli_decomposition(matrix:np.ndarray)->Tuple[QubitHamiltonian,QubitHamiltonian]:
-    n_qubits = np.ceil(np.log2(max(matrix.shape)))
-    n_qubits = int(n_qubits)
+# def pauli_decomposition(matrix:np.ndarray)->Tuple[QubitHamiltonian,QubitHamiltonian]:
+#     n_qubits = np.ceil(np.log2(max(matrix.shape)))
+#     n_qubits = int(n_qubits)
 
-    H = tq.paulis.Zero()
-    for i in range(matrix.shape[0]):
-        for j in range(matrix.shape[1]):
-            H += matrix[i,j] * tq.paulis.KetBra(ket=i, bra=j, n_qubits=n_qubits)
+#     H = tq.paulis.Zero()
+#     for i in range(matrix.shape[0]):
+#         for j in range(matrix.shape[1]):
+#             H += matrix[i,j] * tq.paulis.KetBra(ket=i, bra=j, n_qubits=n_qubits)
 
-    hermitian, anti = H.split()
-    return hermitian, anti
+#     hermitian, anti = H.split()
+#     return hermitian, anti
