@@ -124,7 +124,7 @@ class GraphicalCircuit(Gate):
                         res.append(PairCorrelatorGate(index[0] // 2, index[1] // 2, angle=gate._parameter,*args, **kwargs))
                     else:res.append(DoubleExcitation(index[0], index[1], index[2], index[3], angle=gate._parameter, n_qubits_is_double=n_qubits_is_double, *args,**kwargs))
             else:
-                res.append(GenericGate(U=gate, name="simple", n_qubits_is_double=n_qubits_is_double, *args, **kwargs))
+                res.append(GenericGate(U=QCircuit(gates=[gate]), name="simple", n_qubits_is_double=n_qubits_is_double, *args, **kwargs))
         return cls(gates=res) 
     
     @classmethod
